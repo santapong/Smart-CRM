@@ -4,6 +4,12 @@ import bcrypt from "bcryptjs";
 
 const db = new PrismaClient();
 
+// `revalidatePath` throws outside a Next request scope — stub it.
+vi.mock("next/cache", () => ({
+  revalidatePath: () => {},
+  revalidateTag: () => {},
+}));
+
 // Mock requireOrg to swap the active org per test.
 let active: { userId: string; orgId: string; role: "OWNER" | "ADMIN" | "MEMBER" } | null = null;
 vi.mock("@/lib/tenant", async () => {
