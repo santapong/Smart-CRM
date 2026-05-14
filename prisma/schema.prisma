@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Auth (NextAuth Prisma adapter) ----------
+
+model User {
+  id            String       @id @default(cuid())
+  name          String?
+  email         String       @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime     @default(now())
+
+  accounts    Account[]
+  sessions    Session[]
+  memberships Membership[]
+  ownedDeals  Deal[]       @relation("DealOwner")
+  activities  Activity[]   @relation("ActivityOwner")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------- Tenancy ----------
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  memberships Membership[]
+  companies   Company[]
+  contacts    Contact[]
+  deals       Deal[]
+  activities  Activity[]
+  stages      PipelineStage[]
+  tags        Tag[]
+}
+
+model Membership {
+  id     String @id @default(cuid())
+  userId String
+  orgId  String
+  role   Role   @default(MEMBER)
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+}
+
+// ---------- CRM domain ----------
+
+model Company {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  domain    String?
+  industry  String?
+  size      String?
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contacts Contact[]
+  deals    Deal[]
+
+  @@index([orgId, name])
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  orgId     String
+  companyId String?
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  title     String?
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  company    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  tags       ContactTag[]
+  deals      Deal[]
+  activities Activity[]
+
+  @@index([orgId, lastName])
+  @@index([orgId, email])
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  orgId String
+  name  String
+  color String @default("#64748b")
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contacts ContactTag[]
+
+  @@unique([orgId, name])
+}
+
+model ContactTag {
+  contactId String
+  tagId     String
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+}
+
+model PipelineStage {
+  id    String @id @default(cuid())
+  orgId String
+  name  String
+  order Int
+  color String @default("#3b82f6")
+
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deals Deal[]
+
+  @@unique([orgId, name])
+  @@index([orgId, order])
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+model Deal {
+  id        String     @id @default(cuid())
+  orgId     String
+  title     String
+  value     Decimal    @default(0) @db.Decimal(12, 2)
+  currency  String     @default("USD")
+  status    DealStatus @default(OPEN)
+  stageId   String
+  companyId String?
+  contactId String?
+  ownerId   String?
+  closeDate DateTime?
+  notes     String?    @db.Text
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  org        Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  stage      PipelineStage  @relation(fields: [stageId], references: [id])
+  company    Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact    Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner      User?          @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  activities Activity[]
+
+  @@index([orgId, stageId])
+  @@index([orgId, status])
+}
+
+enum ActivityType {
+  TASK
+  CALL
+  MEETING
+  NOTE
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  orgId       String
+  type        ActivityType @default(TASK)
+  title       String
+  body        String?      @db.Text
+  dueAt       DateTime?
+  completedAt DateTime?
+  contactId   String?
+  dealId      String?
+  ownerId     String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contact Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  deal    Deal?        @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  owner   User?        @relation("ActivityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, dueAt])
+  @@index([orgId, completedAt])
+}
