@@ -73,13 +73,15 @@ model Organization {
   slug      String   @unique
   createdAt DateTime @default(now())
 
-  memberships Membership[]
-  companies   Company[]
-  contacts    Contact[]
-  deals       Deal[]
-  activities  Activity[]
-  stages      PipelineStage[]
-  tags        Tag[]
+  memberships      Membership[]
+  companies        Company[]
+  contacts         Contact[]
+  deals            Deal[]
+  activities       Activity[]
+  stages           PipelineStage[]
+  tags             Tag[]
+  messageTemplates MessageTemplate[]
+  messageLogs      MessageLog[]
 }
 
 model Membership {
@@ -118,24 +120,38 @@ model Company {
 }
 
 model Contact {
-  id        String   @id @default(cuid())
-  orgId     String
-  companyId String?
-  firstName String
-  lastName  String
-  email     String?
-  phone     String?
-  title     String?
-  notes     String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(cuid())
+  orgId            String
+  companyId        String?
+  firstName        String
+  lastName         String
+  email            String?
+  phone            String?
+  title            String?
+  notes            String?  @db.Text
+  telegramChatId   String?
+  lineUserId       String?
+  preferredChannel MessageChannel?
+  emailOptIn       Boolean  @default(true)
+  telegramOptIn    Boolean  @default(true)
+  lineOptIn        Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  company    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  tags       ContactTag[]
-  deals      Deal[]
-  activities Activity[]
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  company     Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  tags        ContactTag[]
+  deals       Deal[]
+  activities  Activity[]
+  messageLogs MessageLog[]
 
+  // Handles are globally unique because we run a single shared Telegram bot
+  // and a single shared LINE channel: each real-world user has exactly one
+  // chat id / user id across the whole deployment. This is what lets the
+  // inbound webhooks safely look up a contact by handle alone and trust the
+  // resulting orgId.
+  @@unique([telegramChatId])
+  @@unique([lineUserId])
   @@index([orgId, lastName])
   @@index([orgId, email])
 }
@@ -237,4 +253,69 @@ model Activity {
 
   @@index([orgId, dueAt])
   @@index([orgId, completedAt])
+}
+
+// ---------- Messaging (email, Telegram, LINE) ----------
+
+enum MessageChannel {
+  EMAIL
+  TELEGRAM
+  LINE
+}
+
+enum MessageDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  RECEIVED
+}
+
+model MessageTemplate {
+  id        String         @id @default(cuid())
+  orgId     String
+  key       String
+  channel   MessageChannel
+  subject   String?
+  body      String         @db.Text
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, channel, key])
+  @@index([orgId])
+}
+
+model MessageLog {
+  id                String           @id @default(cuid())
+  orgId             String
+  contactId         String?
+  channel           MessageChannel
+  direction         MessageDirection
+  status            MessageStatus
+  subject           String?
+  body              String           @db.Text
+  toAddress         String?
+  fromAddress       String?
+  providerMessageId String?
+  error             String?          @db.Text
+  templateKey       String?
+  payload           Json?
+  sentAt            DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contact Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, createdAt])
+  @@index([orgId, contactId, createdAt])
+  @@index([orgId, channel, status])
+  @@index([providerMessageId])
 }

@@ -30,7 +30,7 @@ export async function signUpAction(input: unknown): Promise<ActionResult<{ userI
 
   const passwordHash = await bcrypt.hash(password, 10);
 
-  let slugBase = slugify(orgName) || "team";
+  const slugBase = slugify(orgName) || "team";
   let slug = slugBase;
   let i = 1;
   while (await db.organization.findUnique({ where: { slug } })) {

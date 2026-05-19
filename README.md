@@ -2,7 +2,8 @@
 
 A lightweight, multi-tenant CRM built with Next.js 15, TypeScript, Postgres + Prisma,
 NextAuth, and Tailwind/shadcn. Includes Contacts, Companies, Deals (Kanban),
-Activities, and a Reporting Dashboard.
+Activities, a Reporting Dashboard, and outbound messaging over email, Telegram,
+and LINE.
 
 ## Quickstart
 
@@ -76,6 +77,33 @@ different org.
 
 Credentials provider only (email + password). To enable email magic links, add
 a Resend API key to `.env` and add an EmailProvider to `src/lib/auth.ts`.
+
+## Messaging (email, Telegram, LINE)
+
+Outbound messages route through a single `MessageChannel` interface defined in
+`src/server/messaging/`. Each channel is a thin driver over a third-party SDK:
+
+- **Email** — Resend. Set `RESEND_API_KEY` and `EMAIL_FROM`.
+- **Telegram** — `telegraf` against a single shared bot. Set `TELEGRAM_BOT_TOKEN`
+  and (recommended) `TELEGRAM_WEBHOOK_SECRET`. Register the webhook via
+  Telegram's `setWebhook` and point it at `/api/webhooks/telegram`, passing the
+  same secret as `secret_token`.
+- **LINE** — `@line/bot-sdk` against a single shared Messaging API channel. Set
+  `LINE_CHANNEL_ACCESS_TOKEN` and `LINE_CHANNEL_SECRET`. Point the LINE webhook
+  at `/api/webhooks/line` — inbound requests are HMAC-verified against the
+  channel secret.
+- **Resend delivery events** (optional) — point Resend's webhook at
+  `/api/webhooks/resend` to flip the `MessageLog` status from `SENT` to
+  `DELIVERED` / `FAILED` based on the event type.
+
+Contacts carry a `telegramChatId`, `lineUserId`, `preferredChannel`, and a
+per-channel opt-in flag. The Send Message panel on the contact detail page
+greys out channels the contact is unreachable on. Every send writes a
+`MessageLog` row scoped to the org, so the thread history is visible per
+contact.
+
+`MessageTemplate` rows let you save reusable bodies per `(org, channel, key)`
+with `{{firstName}}`-style placeholders.
 
 ## Deploy
 

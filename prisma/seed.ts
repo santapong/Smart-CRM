@@ -1,4 +1,4 @@
-import { PrismaClient, Role, DealStatus, ActivityType } from "@prisma/client";
+import { PrismaClient, Role, DealStatus, ActivityType, MessageChannel } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const db = new PrismaClient();
@@ -15,6 +15,8 @@ async function main() {
   console.log("Seeding…");
 
   // Wipe in dependency order (dev only).
+  await db.messageLog.deleteMany();
+  await db.messageTemplate.deleteMany();
   await db.activity.deleteMany();
   await db.contactTag.deleteMany();
   await db.deal.deleteMany();
@@ -134,6 +136,32 @@ async function main() {
       },
     });
   }
+
+  // Message templates — one per channel — so the Send Message panel can be
+  // demoed by picking a template key.
+  await db.messageTemplate.createMany({
+    data: [
+      {
+        orgId: org.id,
+        channel: MessageChannel.EMAIL,
+        key: "welcome",
+        subject: "Welcome to Acme, {{firstName}}",
+        body: "Hi {{firstName}},\n\nThanks for chatting today. Let us know if you have questions.\n\n— The Acme team",
+      },
+      {
+        orgId: org.id,
+        channel: MessageChannel.TELEGRAM,
+        key: "follow-up",
+        body: "Hey {{firstName}} — quick follow-up on our last conversation. Let me know if next week works.",
+      },
+      {
+        orgId: org.id,
+        channel: MessageChannel.LINE,
+        key: "follow-up",
+        body: "สวัสดีคุณ {{firstName}} — ติดตามการพูดคุยของเราเมื่อวานครับ ขอบคุณครับ",
+      },
+    ],
+  });
 
   console.log(`Seeded org "${org.name}" (owner: owner@demo.com / password123)`);
 }
