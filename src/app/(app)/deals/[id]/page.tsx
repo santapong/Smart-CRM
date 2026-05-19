@@ -5,11 +5,12 @@ import { PageHeader } from "@/components/page-header";
 import { DealForm } from "../deal-form";
 import { DealStatusActions } from "./status-actions";
 
-export default async function DealDetail({ params }: { params: { id: string } }) {
+export default async function DealDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const { orgId } = await requireOrg();
   const [deal, stages, contacts, companies] = await Promise.all([
     db.deal.findFirst({
-      where: { id: params.id, orgId },
+      where: { id, orgId },
       include: { activities: { orderBy: { createdAt: "desc" }, take: 20 }, contact: true, company: true, stage: true },
     }),
     db.pipelineStage.findMany({ where: { orgId }, orderBy: { order: "asc" } }),

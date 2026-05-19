@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { createContact, updateContact } from "@/server/actions/contacts";
 
 type Company = { id: string; name: string };
+type Channel = "EMAIL" | "TELEGRAM" | "LINE";
 
 export function ContactForm({
   companies,
@@ -24,6 +25,12 @@ export function ContactForm({
     title: string | null;
     companyId: string | null;
     notes: string | null;
+    telegramChatId?: string | null;
+    lineUserId?: string | null;
+    preferredChannel?: Channel | null;
+    emailOptIn?: boolean;
+    telegramOptIn?: boolean;
+    lineOptIn?: boolean;
   };
 }) {
   const router = useRouter();
@@ -47,6 +54,7 @@ export function ContactForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      <input type="hidden" name="_channelsForm" value="1" />
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="firstName">First name</Label>
@@ -87,6 +95,73 @@ export function ContactForm({
           ))}
         </select>
       </div>
+
+      <fieldset className="space-y-3 rounded-md border p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Messaging channels
+        </legend>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="telegramChatId">Telegram chat ID</Label>
+            <Input
+              id="telegramChatId"
+              name="telegramChatId"
+              placeholder="e.g. 123456789"
+              defaultValue={initial?.telegramChatId ?? ""}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lineUserId">LINE user ID</Label>
+            <Input
+              id="lineUserId"
+              name="lineUserId"
+              placeholder="e.g. U1234abcd…"
+              defaultValue={initial?.lineUserId ?? ""}
+            />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="preferredChannel">Preferred channel</Label>
+          <select
+            id="preferredChannel"
+            name="preferredChannel"
+            defaultValue={initial?.preferredChannel ?? ""}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">— None —</option>
+            <option value="EMAIL">Email</option>
+            <option value="TELEGRAM">Telegram</option>
+            <option value="LINE">LINE</option>
+          </select>
+        </div>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="emailOptIn"
+              defaultChecked={initial?.emailOptIn ?? true}
+            />
+            Email opt-in
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="telegramOptIn"
+              defaultChecked={initial?.telegramOptIn ?? true}
+            />
+            Telegram opt-in
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="lineOptIn"
+              defaultChecked={initial?.lineOptIn ?? true}
+            />
+            LINE opt-in
+          </label>
+        </div>
+      </fieldset>
+
       <div className="space-y-1.5">
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" name="notes" defaultValue={initial?.notes ?? ""} />
