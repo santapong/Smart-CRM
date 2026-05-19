@@ -34,11 +34,14 @@ export async function POST(req: Request) {
   const chatId = String(msg.chat.id);
   const text: string = msg.text ?? msg.caption ?? "";
 
-  // Map back to a Contact by stored telegramChatId. We don't know the org from
-  // a shared bot, so look across the system — chat ids are globally unique.
-  const contact = await db.contact.findFirst({ where: { telegramChatId: chatId } });
+  // telegramChatId is globally unique in the schema, so findUnique gives us
+  // exactly the contact this chat belongs to. Cross-org leak is impossible.
+  const contact = await db.contact.findUnique({ where: { telegramChatId: chatId } });
 
   if (contact) {
+    // Only store the message subobject as the audit payload — never the full
+    // update, which can carry unrelated PII from forwards / via_bot, and to
+    // keep secret-shaped fields from a future change out of the DB.
     await db.messageLog.create({
       data: {
         orgId: contact.orgId,
@@ -49,7 +52,7 @@ export async function POST(req: Request) {
         body: text,
         fromAddress: chatId,
         providerMessageId: msg.message_id ? String(msg.message_id) : null,
-        payload: update,
+        payload: msg,
         sentAt: msg.date ? new Date(msg.date * 1000) : new Date(),
       },
     });

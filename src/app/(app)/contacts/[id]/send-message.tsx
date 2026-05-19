@@ -38,7 +38,10 @@ export function SendMessagePanel({
       return;
     }
     setBusy(true);
-    const form = new FormData(e.currentTarget);
+    // Capture the form node before the await — React reuses synthetic events
+    // and e.currentTarget is null on the other side of the boundary.
+    const formEl = e.currentTarget;
+    const form = new FormData(formEl);
     const res = await sendMessageToContact({
       contactId,
       channel,
@@ -51,7 +54,7 @@ export function SendMessagePanel({
       return;
     }
     toast.success("Message sent");
-    (e.currentTarget as HTMLFormElement).reset();
+    formEl.reset();
     router.refresh();
   }
 

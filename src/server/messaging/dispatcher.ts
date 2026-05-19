@@ -85,37 +85,31 @@ export async function dispatchMessage(
   const renderedSubject = subject ? renderTemplate(subject, vars) : undefined;
   const renderedBody = renderTemplate(body, vars);
 
+  // All three drivers here are synchronous request/response — no async queue
+  // sits between us and the provider — so we collapse the audit row to a
+  // single insert after we know the outcome. If we add an async driver later,
+  // bring back the QUEUED→SENT two-step.
+  const result = await driver.send({ to, subject: renderedSubject, body: renderedBody });
+
   const log = await db.messageLog.create({
     data: {
       orgId,
       contactId: contact.id,
       channel: input.channel,
       direction: "OUTBOUND",
-      status: "QUEUED",
+      status: result.ok ? "SENT" : "FAILED",
       subject: renderedSubject,
       body: renderedBody,
       toAddress: to,
       templateKey: templateKey ?? null,
+      providerMessageId: result.ok ? result.providerMessageId ?? null : null,
+      error: result.ok ? null : result.error,
+      sentAt: result.ok ? new Date() : null,
     },
   });
 
-  const result = await driver.send({ to, subject: renderedSubject, body: renderedBody });
-
   if (result.ok) {
-    await db.messageLog.update({
-      where: { id: log.id },
-      data: {
-        status: "SENT",
-        providerMessageId: result.providerMessageId,
-        sentAt: new Date(),
-      },
-    });
     return { ok: true, messageLogId: log.id, providerMessageId: result.providerMessageId };
   }
-
-  await db.messageLog.update({
-    where: { id: log.id },
-    data: { status: "FAILED", error: result.error },
-  });
   return { ok: false, messageLogId: log.id, error: result.error };
 }

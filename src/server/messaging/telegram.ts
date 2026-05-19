@@ -23,9 +23,12 @@ export const telegramDriver: ChannelDriver = {
     if (!Number.isFinite(chatId)) {
       return { ok: false, error: "Telegram recipient must be a numeric chat id" };
     }
-    const text = subject ? `*${subject}*\n\n${body}` : body;
+    // No parse_mode here: user-typed bodies often contain `_` `*` `[` which
+    // Markdown rejects with a 400. The cost is no bold subject, which is fine
+    // for v1 — switch to MarkdownV2 with escaping when we add rich templates.
+    const text = subject ? `${subject}\n\n${body}` : body;
     try {
-      const msg = await b.telegram.sendMessage(chatId, text, { parse_mode: "Markdown" });
+      const msg = await b.telegram.sendMessage(chatId, text);
       return { ok: true, providerMessageId: String(msg.message_id) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : "Unknown Telegram error" };

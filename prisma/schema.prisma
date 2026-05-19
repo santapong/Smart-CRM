@@ -145,8 +145,13 @@ model Contact {
   activities  Activity[]
   messageLogs MessageLog[]
 
-  @@unique([orgId, telegramChatId])
-  @@unique([orgId, lineUserId])
+  // Handles are globally unique because we run a single shared Telegram bot
+  // and a single shared LINE channel: each real-world user has exactly one
+  // chat id / user id across the whole deployment. This is what lets the
+  // inbound webhooks safely look up a contact by handle alone and trust the
+  // resulting orgId.
+  @@unique([telegramChatId])
+  @@unique([lineUserId])
   @@index([orgId, lastName])
   @@index([orgId, email])
 }

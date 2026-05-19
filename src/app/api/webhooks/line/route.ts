@@ -7,12 +7,19 @@ export const runtime = "nodejs";
 
 function verifyLineSignature(rawBody: string, signature: string | null, secret: string) {
   if (!signature) return false;
-  const expected = createHmac("sha256", secret).update(rawBody).digest("base64");
+  // Both the expected and provided signatures are base64-encoded SHA-256
+  // HMACs. Decode them to bytes before timing-safe comparison, otherwise we'd
+  // be comparing utf-8 string bytes — which happens to work for valid
+  // signatures but masks tampering attempts behind an exception path.
+  const expected = createHmac("sha256", secret).update(rawBody).digest();
+  let provided: Buffer;
   try {
-    return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+    provided = Buffer.from(signature, "base64");
   } catch {
     return false;
   }
+  if (provided.length !== expected.length) return false;
+  return timingSafeEqual(expected, provided);
 }
 
 export async function POST(req: Request) {
@@ -39,7 +46,8 @@ export async function POST(req: Request) {
     const userId: string | undefined = ev.source?.userId;
     if (!userId) continue;
 
-    const contact = await db.contact.findFirst({ where: { lineUserId: userId } });
+    // lineUserId is globally unique in the schema — see Contact's @@unique.
+    const contact = await db.contact.findUnique({ where: { lineUserId: userId } });
     if (!contact) continue;
 
     await db.messageLog.create({
