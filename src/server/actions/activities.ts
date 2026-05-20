@@ -10,6 +10,7 @@ const activitySchema = z.object({
   title: z.string().min(1).max(160),
   body: z.string().max(4000).optional().or(z.literal("")),
   dueAt: z.string().optional().or(z.literal("")),
+  companyId: z.string().optional().or(z.literal("")),
   contactId: z.string().optional().or(z.literal("")),
   dealId: z.string().optional().or(z.literal("")),
 });
@@ -28,12 +29,14 @@ export async function createActivity(input: unknown): Promise<ActionResult<{ id:
       title: d.title,
       body: c(d.body),
       dueAt: d.dueAt ? new Date(d.dueAt) : null,
+      companyId: c(d.companyId),
       contactId: c(d.contactId),
       dealId: c(d.dealId),
       ownerId: userId,
     },
   });
   revalidatePath("/activities");
+  if (created.companyId) revalidatePath(`/companies/${created.companyId}`);
   return ok({ id: created.id });
 }
 

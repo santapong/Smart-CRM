@@ -1,8 +1,9 @@
 # Smart CRM
 
 A lightweight, multi-tenant CRM built with Next.js 15, TypeScript, Postgres + Prisma,
-NextAuth, and Tailwind/shadcn. Includes Contacts, Companies, Deals (Kanban),
-Activities, and a Reporting Dashboard.
+NextAuth, and Tailwind/shadcn. Includes Accounts (with hierarchy + tiering),
+Contacts, Deals (Kanban), Activities, Tickets with per-tier SLA tracking,
+custom fields, and a Reporting Dashboard.
 
 ## Quickstart
 
@@ -76,6 +77,37 @@ different org.
 
 Credentials provider only (email + password). To enable email magic links, add
 a Resend API key to `.env` and add an EmailProvider to `src/lib/auth.ts`.
+
+## Enterprise accounts
+
+Accounts (the Prisma model stays `Company`, the UI says "Account") carry a
+tier (SMB / MID_MARKET / ENTERPRISE / STRATEGIC), an optional parent so you
+can model subsidiaries, and ARR. Each account has an `AccountAssignment`
+team: one user can hold multiple roles (Owner, AE, SE, CSM, Exec Sponsor) on
+the same account.
+
+Contacts have an `isPrimary` flag (one primary per account, enforced
+server-side) and a decision role (Champion / Economic Buyer / User /
+Influencer / Blocker).
+
+### Tickets + SLAs
+
+`SlaPolicy(orgId, tier)` defines a first-response and resolution budget per
+tier. Tickets are scoped to an account and optionally a contact, and breach
+state is computed on-read in `src/lib/sla.ts` (WITHIN / AT_RISK / BREACHED /
+MET). No cron required for v1.
+
+Manage SLA budgets from **Settings → SLA policies** (ADMIN-gated).
+
+### Custom fields
+
+`CustomFieldDefinition(orgId, entity, key, type)` lets each org add fields
+to Companies, Contacts, or Deals without per-tenant schema migrations. The
+value table uses typed columns (`valueText / valueNumber / valueDate /
+valueBoolean`) and supports TEXT, URL, NUMBER, DATE, BOOLEAN, and SELECT.
+
+Manage definitions from **Settings → Custom fields** (ADMIN-gated). Values
+appear inline on the relevant entity detail page.
 
 ## Deploy
 

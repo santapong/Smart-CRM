@@ -43,7 +43,10 @@ export function DealStatusActions({ id, status }: { id: string; status: "OPEN" |
           start(async () => {
             if (!confirm("Delete this deal?")) return;
             const r = await deleteDeal(id);
-            if (!r.ok) return toast.error(r.error);
+            if (!r.ok) {
+              toast.error(r.error);
+              return;
+            }
             toast.success("Deleted");
             router.push("/deals");
             router.refresh();

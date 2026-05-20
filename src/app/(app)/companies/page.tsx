@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TierBadge } from "@/components/tier-badge";
 import { Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -20,20 +21,20 @@ export default async function CompaniesPage() {
 
   return (
     <>
-      <PageHeader title="Companies">
+      <PageHeader title="Accounts">
         <Button asChild>
           <Link href="/companies/new">
-            <Plus className="h-4 w-4" /> New company
+            <Plus className="h-4 w-4" /> New account
           </Link>
         </Button>
       </PageHeader>
       <div className="p-6">
         {companies.length === 0 ? (
           <EmptyState
-            title="No companies yet"
+            title="No accounts yet"
             action={
               <Button asChild>
-                <Link href="/companies/new">New company</Link>
+                <Link href="/companies/new">New account</Link>
               </Button>
             }
           />
@@ -43,6 +44,7 @@ export default async function CompaniesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Tier</TableHead>
                   <TableHead>Domain</TableHead>
                   <TableHead>Industry</TableHead>
                   <TableHead>Contacts</TableHead>
@@ -56,6 +58,9 @@ export default async function CompaniesPage() {
                       <Link href={`/companies/${c.id}`} className="font-medium hover:underline">
                         {c.name}
                       </Link>
+                    </TableCell>
+                    <TableCell>
+                      <TierBadge tier={c.tier} />
                     </TableCell>
                     <TableCell className="text-muted-foreground">{c.domain ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{c.industry ?? "—"}</TableCell>
