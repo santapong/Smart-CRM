@@ -7,8 +7,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createContact, updateContact } from "@/server/actions/contacts";
+import type { DecisionRole } from "@prisma/client";
 
 type Company = { id: string; name: string };
+
+const DECISION_ROLE_OPTIONS: { value: DecisionRole; label: string }[] = [
+  { value: "CHAMPION", label: "Champion" },
+  { value: "ECONOMIC_BUYER", label: "Economic Buyer" },
+  { value: "USER", label: "User" },
+  { value: "INFLUENCER", label: "Influencer" },
+  { value: "BLOCKER", label: "Blocker" },
+];
 
 export function ContactForm({
   companies,
@@ -24,6 +33,8 @@ export function ContactForm({
     title: string | null;
     companyId: string | null;
     notes: string | null;
+    isPrimary: boolean;
+    decisionRole: DecisionRole | null;
   };
 }) {
   const router = useRouter();
@@ -72,7 +83,7 @@ export function ContactForm({
         </div>
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="companyId">Company</Label>
+        <Label htmlFor="companyId">Account</Label>
         <select
           id="companyId"
           name="companyId"
@@ -86,6 +97,36 @@ export function ContactForm({
             </option>
           ))}
         </select>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="decisionRole">Decision role</Label>
+          <select
+            id="decisionRole"
+            name="decisionRole"
+            defaultValue={initial?.decisionRole ?? ""}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">— None —</option>
+            {DECISION_ROLE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="isPrimary">Primary contact</Label>
+          <label className="flex h-9 items-center gap-2 text-sm">
+            <input
+              id="isPrimary"
+              name="isPrimary"
+              type="checkbox"
+              defaultChecked={initial?.isPrimary ?? false}
+            />
+            Mark as primary contact for the account
+          </label>
+        </div>
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="notes">Notes</Label>

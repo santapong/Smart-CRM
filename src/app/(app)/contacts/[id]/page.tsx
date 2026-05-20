@@ -5,12 +5,22 @@ import { requireOrg } from "@/lib/tenant";
 import { PageHeader } from "@/components/page-header";
 import { ContactForm } from "../contact-form";
 import { DeleteContactButton } from "./delete-button";
+import type { DecisionRole } from "@prisma/client";
 
-export default async function ContactDetail({ params }: { params: { id: string } }) {
+const DECISION_ROLE_LABEL: Record<DecisionRole, string> = {
+  CHAMPION: "Champion",
+  ECONOMIC_BUYER: "Economic Buyer",
+  USER: "User",
+  INFLUENCER: "Influencer",
+  BLOCKER: "Blocker",
+};
+
+export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const { orgId } = await requireOrg();
   const [contact, companies] = await Promise.all([
     db.contact.findFirst({
-      where: { id: params.id, orgId },
+      where: { id, orgId },
       include: {
         company: true,
         deals: { include: { stage: true }, orderBy: { createdAt: "desc" } },
@@ -24,7 +34,19 @@ export default async function ContactDetail({ params }: { params: { id: string }
   return (
     <>
       <PageHeader title={`${contact.firstName} ${contact.lastName}`} description={contact.email ?? undefined}>
-        <DeleteContactButton id={contact.id} />
+        <div className="flex items-center gap-2">
+          {contact.isPrimary && (
+            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-900 dark:bg-blue-900/40 dark:text-blue-100">
+              Primary
+            </span>
+          )}
+          {contact.decisionRole && (
+            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+              {DECISION_ROLE_LABEL[contact.decisionRole]}
+            </span>
+          )}
+          <DeleteContactButton id={contact.id} />
+        </div>
       </PageHeader>
       <div className="grid gap-6 p-6 lg:grid-cols-3">
         <section className="lg:col-span-2">
@@ -41,6 +63,8 @@ export default async function ContactDetail({ params }: { params: { id: string }
                 title: contact.title,
                 companyId: contact.companyId,
                 notes: contact.notes,
+                isPrimary: contact.isPrimary,
+                decisionRole: contact.decisionRole,
               }}
             />
           </div>
