@@ -9,9 +9,14 @@ import { Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function ContactsPage({ searchParams }: { searchParams: { q?: string } }) {
+export default async function ContactsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const { orgId } = await requireOrg();
-  const q = searchParams.q?.trim() ?? "";
+  const { q: qParam } = await searchParams;
+  const q = qParam?.trim() ?? "";
   const contacts = await db.contact.findMany({
     where: {
       orgId,

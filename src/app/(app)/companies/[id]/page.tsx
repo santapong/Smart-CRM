@@ -5,10 +5,11 @@ import { requireOrg } from "@/lib/tenant";
 import { PageHeader } from "@/components/page-header";
 import { CompanyForm } from "../company-form";
 
-export default async function CompanyDetail({ params }: { params: { id: string } }) {
+export default async function CompanyDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const { orgId } = await requireOrg();
   const company = await db.company.findFirst({
-    where: { id: params.id, orgId },
+    where: { id, orgId },
     include: { contacts: { orderBy: { lastName: "asc" } }, deals: { include: { stage: true } } },
   });
   if (!company) notFound();

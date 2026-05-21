@@ -6,11 +6,12 @@ import { PageHeader } from "@/components/page-header";
 import { ContactForm } from "../contact-form";
 import { DeleteContactButton } from "./delete-button";
 
-export default async function ContactDetail({ params }: { params: { id: string } }) {
+export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const { orgId } = await requireOrg();
   const [contact, companies] = await Promise.all([
     db.contact.findFirst({
-      where: { id: params.id, orgId },
+      where: { id, orgId },
       include: {
         company: true,
         deals: { include: { stage: true }, orderBy: { createdAt: "desc" } },

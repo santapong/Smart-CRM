@@ -4,8 +4,10 @@ import { z } from "zod";
 export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),
+    DIRECT_URL: z.string().url().optional(),
     AUTH_SECRET: z.string().min(16),
     AUTH_URL: z.string().url().optional(),
+    AUTH_TRUST_HOST: z.preprocess((v) => v === "true" || v === true, z.boolean().optional()),
     EMAIL_FROM: z.string().email().optional(),
     RESEND_API_KEY: z.string().optional(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
@@ -15,8 +17,10 @@ export const env = createEnv({
   },
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
+    DIRECT_URL: process.env.DIRECT_URL,
     AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_URL: process.env.AUTH_URL,
+    AUTH_TRUST_HOST: process.env.AUTH_TRUST_HOST,
     EMAIL_FROM: process.env.EMAIL_FROM,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     NODE_ENV: process.env.NODE_ENV,

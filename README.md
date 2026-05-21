@@ -79,5 +79,15 @@ a Resend API key to `.env` and add an EmailProvider to `src/lib/auth.ts`.
 
 ## Deploy
 
-Designed for Vercel + a managed Postgres (Neon, Supabase, RDS, etc.). Set
-`DATABASE_URL`, `AUTH_SECRET`, and `AUTH_URL` in the project environment.
+Designed for Vercel + a managed Postgres (Vercel Postgres, Neon, Supabase, etc.).
+See [`docs/DEPLOY.md`](./docs/DEPLOY.md) for a step-by-step guide — short version:
+
+- `vercel.json` pins the install / build commands and region.
+- `postinstall` runs `prisma generate`, so the Vercel build needs no extra hook.
+- Set `DATABASE_URL` to a **pooled** Postgres URL (PgBouncer transaction mode)
+  and `DIRECT_URL` to the direct URL for migrations. The middleware is
+  edge-safe (`src/lib/auth.config.ts`) so it deploys to the edge runtime
+  without bcrypt/Prisma getting bundled.
+- Required env vars: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_TRUST_HOST=true`.
+  `AUTH_URL` is optional on Vercel (auto-detected); set it on Production
+  only if you want to lock callbacks to a custom domain.
