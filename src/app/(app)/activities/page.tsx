@@ -2,7 +2,6 @@ import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
 import { ActivityRow } from "./activity-row";
 import { ActivityFormInline } from "./activity-form";
 

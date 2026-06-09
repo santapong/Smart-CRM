@@ -8,8 +8,6 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createActivity } from "@/server/actions/activities";
 
-type Opt = { id: string; firstName?: string; lastName?: string; title?: string };
-
 export function ActivityFormInline({
   contacts,
   deals,
