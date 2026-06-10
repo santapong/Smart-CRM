@@ -5,20 +5,23 @@ import { requireOrg } from "@/lib/tenant";
 import { PageHeader } from "@/components/page-header";
 import { ContactForm } from "../contact-form";
 import { DeleteContactButton } from "./delete-button";
+import { TagPicker } from "./tag-picker";
 
 export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId } = await requireOrg();
-  const [contact, companies] = await Promise.all([
+  const [contact, companies, allTags] = await Promise.all([
     db.contact.findFirst({
       where: { id, orgId },
       include: {
         company: true,
         deals: { include: { stage: true }, orderBy: { createdAt: "desc" } },
         activities: { orderBy: { createdAt: "desc" }, take: 10 },
+        tags: { include: { tag: true } },
       },
     }),
     db.company.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.tag.findMany({ where: { orgId }, orderBy: { name: "asc" } }),
   ]);
   if (!contact) notFound();
 
@@ -47,6 +50,14 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
           </div>
         </section>
         <aside className="space-y-4">
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tags</h3>
+            <TagPicker
+              contactId={contact.id}
+              allTags={allTags.map((t) => ({ id: t.id, name: t.name, color: t.color }))}
+              assignedIds={contact.tags.map((ct) => ct.tagId)}
+            />
+          </div>
           <div className="rounded-lg border bg-card p-4">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Deals</h3>
             {contact.deals.length === 0 ? (

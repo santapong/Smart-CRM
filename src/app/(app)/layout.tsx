@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AppSidebar } from "@/components/app-sidebar";
+import { CommandPalette } from "@/components/command-palette";
 import { SessionProvider } from "next-auth/react";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -17,6 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="flex min-h-screen">
         <AppSidebar orgName={org.name} userEmail={session.user.email ?? ""} />
         <main className="flex-1 overflow-x-hidden">{children}</main>
+        <CommandPalette />
       </div>
     </SessionProvider>
   );

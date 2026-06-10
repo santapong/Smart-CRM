@@ -1,8 +1,9 @@
 # Smart CRM
 
 A lightweight, multi-tenant CRM built with Next.js 15, TypeScript, Postgres + Prisma,
-NextAuth, and Tailwind/shadcn. Includes Contacts, Companies, Deals (Kanban),
-Activities, and a Reporting Dashboard.
+NextAuth, and Tailwind/shadcn. Includes Contacts (with tags and CSV export),
+Companies, Deals (Kanban), Activities, a Reporting Dashboard, and a global
+⌘K command palette for searching across the workspace.
 
 ## Quickstart
 

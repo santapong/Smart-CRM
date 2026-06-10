@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Building2, KanbanSquare, ListChecks, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Building2, KanbanSquare, ListChecks, Settings, LogOut, Search } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { openCommandPalette } from "@/components/command-palette";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
@@ -21,6 +22,16 @@ export function AppSidebar({ orgName, userEmail }: { orgName: string; userEmail:
       <div className="border-b p-4">
         <p className="text-xs uppercase tracking-wider text-muted-foreground">Workspace</p>
         <p className="truncate text-sm font-semibold">{orgName}</p>
+      </div>
+      <div className="p-2 pb-0">
+        <button
+          onClick={openCommandPalette}
+          className="flex w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <Search className="h-4 w-4" />
+          Search…
+          <kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
+        </button>
       </div>
       <nav className="flex flex-1 flex-col gap-1 p-2">
         {NAV.map(({ href, label, Icon }) => {
