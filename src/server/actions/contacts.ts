@@ -1,9 +1,11 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
+import { applyCustomFields } from "@/lib/custom-fields";
 
 const contactSchema = z.object({
   firstName: z.string().min(1).max(80),
@@ -13,6 +15,7 @@ const contactSchema = z.object({
   title: z.string().max(80).optional().or(z.literal("")),
   companyId: z.string().optional().or(z.literal("")),
   notes: z.string().max(4000).optional().or(z.literal("")),
+  customFields: z.record(z.unknown()).optional(),
 });
 
 function clean(v: string | undefined) {
@@ -24,6 +27,8 @@ export async function createContact(input: unknown): Promise<ActionResult<{ id: 
   if (!parsed.success) return fail("Invalid input", parsed.error.flatten().fieldErrors);
   const { orgId } = await requireOrg();
   const d = parsed.data;
+  const cf = await applyCustomFields(orgId, "contact", d.customFields ?? {});
+  if (!cf.ok) return fail("Invalid custom fields", cf.errors);
   const created = await db.contact.create({
     data: {
       orgId,
@@ -34,10 +39,12 @@ export async function createContact(input: unknown): Promise<ActionResult<{ id: 
       title: clean(d.title),
       companyId: clean(d.companyId),
       notes: clean(d.notes),
+      customFields: cf.value as Prisma.InputJsonValue,
     },
   });
   revalidatePath("/contacts");
   return ok({ id: created.id });
+  // TODO: same pattern for companies/deals
 }
 
 export async function updateContact(id: string, input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -47,6 +54,8 @@ export async function updateContact(id: string, input: unknown): Promise<ActionR
   const existing = await db.contact.findFirst({ where: { id, orgId } });
   if (!existing) return fail("Not found");
   const d = parsed.data;
+  const cf = await applyCustomFields(orgId, "contact", d.customFields ?? {});
+  if (!cf.ok) return fail("Invalid custom fields", cf.errors);
   await db.contact.update({
     where: { id },
     data: {
@@ -57,6 +66,7 @@ export async function updateContact(id: string, input: unknown): Promise<ActionR
       title: clean(d.title),
       companyId: clean(d.companyId),
       notes: clean(d.notes),
+      customFields: cf.value as Prisma.InputJsonValue,
     },
   });
   revalidatePath("/contacts");
