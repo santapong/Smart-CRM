@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
+import { getDefinitions, toFieldViews } from "@/lib/custom-fields";
 import { PageHeader } from "@/components/page-header";
 import { DealForm } from "../deal-form";
 import { DealStatusActions } from "./status-actions";
@@ -8,7 +9,7 @@ import { DealStatusActions } from "./status-actions";
 export default async function DealDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId } = await requireOrg();
-  const [deal, stages, contacts, companies] = await Promise.all([
+  const [deal, stages, contacts, companies, defs] = await Promise.all([
     db.deal.findFirst({
       where: { id, orgId },
       include: { activities: { orderBy: { createdAt: "desc" }, take: 20 }, contact: true, company: true, stage: true },
@@ -16,6 +17,7 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
     db.pipelineStage.findMany({ where: { orgId }, orderBy: { order: "asc" } }),
     db.contact.findMany({ where: { orgId }, orderBy: { lastName: "asc" }, select: { id: true, firstName: true, lastName: true } }),
     db.company.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    getDefinitions(orgId, "deal"),
   ]);
   if (!deal) notFound();
 
@@ -30,6 +32,7 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
             stages={stages}
             contacts={contacts.map((c) => ({ id: c.id, label: `${c.firstName} ${c.lastName}` }))}
             companies={companies.map((c) => ({ id: c.id, label: c.name }))}
+            customFieldDefs={toFieldViews(defs)}
             initial={{
               id: deal.id,
               title: deal.title,
@@ -41,6 +44,7 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
               companyId: deal.companyId,
               closeDate: deal.closeDate,
               notes: deal.notes,
+              customFields: deal.customFields as Record<string, unknown> | null,
             }}
           />
         </section>

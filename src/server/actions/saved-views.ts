@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { hasRole } from "@/lib/rbac";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
+import { withinLimit } from "@/lib/entitlements";
 import { Prisma, type SavedView } from "@prisma/client";
 
 const SAVED_VIEW_ENTITIES = ["contact", "company", "deal", "activity"] as const;
@@ -28,6 +29,11 @@ export async function createSavedView(input: unknown): Promise<ActionResult<{ id
   if (!parsed.success) return fail("Invalid input", parsed.error.flatten().fieldErrors);
   const { orgId, userId } = await requireOrg();
   const d = parsed.data;
+  // M4: enforce plan limits on the org's saved views.
+  const count = await db.savedView.count({ where: { orgId } });
+  if (!(await withinLimit(orgId, "savedViews", count))) {
+    return fail("Plan limit reached: upgrade your plan to add more saved views");
+  }
   const created = await db.savedView.create({
     data: {
       orgId,

@@ -1,10 +1,12 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { db, optimisticUpdate, OCC_CONFLICT_MESSAGE } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { recordStageEvent } from "@/lib/stage-history";
+import { applyCustomFields } from "@/lib/custom-fields";
 import { emit, EVENTS } from "@/lib/events";
 
 const dealSchema = z.object({
@@ -17,6 +19,7 @@ const dealSchema = z.object({
   companyId: z.string().optional().or(z.literal("")),
   closeDate: z.string().optional().or(z.literal("")),
   notes: z.string().max(4000).optional().or(z.literal("")),
+  customFields: z.record(z.unknown()).optional(),
   // Optimistic concurrency (M1) — optional; guards against concurrent writes.
   expectedVersion: z.number().int().min(0).optional(),
 });
@@ -33,6 +36,8 @@ export async function createDeal(input: unknown): Promise<ActionResult<{ id: str
   const stage = await db.pipelineStage.findFirst({ where: { id: parsed.data.stageId, orgId } });
   if (!stage) return fail("Stage not found");
   const d = parsed.data;
+  const cf = await applyCustomFields(orgId, "deal", d.customFields ?? {});
+  if (!cf.ok) return fail("Invalid custom fields", cf.errors);
   const created = await db.$transaction(async (tx) => {
     const deal = await tx.deal.create({
       data: {
@@ -48,6 +53,7 @@ export async function createDeal(input: unknown): Promise<ActionResult<{ id: str
         ownerId: userId,
         closeDate: d.closeDate ? new Date(d.closeDate) : null,
         notes: c(d.notes),
+        customFields: cf.value as Prisma.InputJsonValue,
       },
     });
     await recordStageEvent(
@@ -81,6 +87,8 @@ export async function updateDeal(id: string, input: unknown): Promise<ActionResu
   const stage = await db.pipelineStage.findFirst({ where: { id: parsed.data.stageId, orgId } });
   if (!stage) return fail("Stage not found");
   const d = parsed.data;
+  const cf = await applyCustomFields(orgId, "deal", d.customFields ?? {});
+  if (!cf.ok) return fail("Invalid custom fields", cf.errors);
   const stageChanged = existing.stageId !== d.stageId;
   const statusChanged = existing.status !== d.status;
   try {
@@ -100,6 +108,7 @@ export async function updateDeal(id: string, input: unknown): Promise<ActionResu
           companyId: c(d.companyId),
           closeDate: d.closeDate ? new Date(d.closeDate) : null,
           notes: c(d.notes),
+          customFields: cf.value as Prisma.InputJsonValue,
         },
       });
       if (!upd.ok) throw new OccConflictError();

@@ -26,6 +26,26 @@ export function selectOptions(def: CustomFieldDefinition): string[] {
   return config.options.filter((o): o is string => typeof o === "string");
 }
 
+/** Serializable view of a definition for passing into client form components. */
+export type CustomFieldDefView = {
+  key: string;
+  label: string;
+  type: CustomFieldType;
+  required: boolean;
+  options: string[];
+};
+
+/** Map full definitions to the plain shape client forms consume. */
+export function toFieldViews(defs: CustomFieldDefinition[]): CustomFieldDefView[] {
+  return defs.map((d) => ({
+    key: d.key,
+    label: d.label,
+    type: d.type as CustomFieldType,
+    required: d.required,
+    options: selectOptions(d),
+  }));
+}
+
 /** A loose ISO date string (date or date-time) that Date can parse. */
 const isoDateSchema = z
   .string()

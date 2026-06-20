@@ -7,14 +7,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createContact, updateContact } from "@/server/actions/contacts";
+import {
+  CustomFieldInputs,
+  collectCustomFields,
+  type CustomFieldDef,
+} from "@/components/custom-field-inputs";
 
 type Company = { id: string; name: string };
 
 export function ContactForm({
   companies,
+  customFieldDefs = [],
   initial,
 }: {
   companies: Company[];
+  customFieldDefs?: CustomFieldDef[];
   initial?: {
     id: string;
     firstName: string;
@@ -24,6 +31,7 @@ export function ContactForm({
     title: string | null;
     companyId: string | null;
     notes: string | null;
+    customFields?: Record<string, unknown> | null;
   };
 }) {
   const router = useRouter();
@@ -33,7 +41,10 @@ export function ContactForm({
     e.preventDefault();
     setBusy(true);
     const form = new FormData(e.currentTarget);
-    const input = Object.fromEntries(form.entries());
+    const input = {
+      ...Object.fromEntries(form.entries()),
+      customFields: collectCustomFields(form, customFieldDefs),
+    };
     const res = initial ? await updateContact(initial.id, input) : await createContact(input);
     setBusy(false);
     if (!res.ok) {
@@ -91,6 +102,7 @@ export function ContactForm({
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" name="notes" defaultValue={initial?.notes ?? ""} />
       </div>
+      <CustomFieldInputs defs={customFieldDefs} initial={initial?.customFields} />
       <div className="flex gap-2">
         <Button type="submit" disabled={busy}>
           {busy ? "Saving…" : initial ? "Save changes" : "Create contact"}

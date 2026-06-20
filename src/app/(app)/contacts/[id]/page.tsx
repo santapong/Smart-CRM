@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
+import { getDefinitions, toFieldViews } from "@/lib/custom-fields";
 import { PageHeader } from "@/components/page-header";
 import { ContactForm } from "../contact-form";
 import { DeleteContactButton } from "./delete-button";
@@ -10,7 +11,7 @@ import { TagPicker } from "./tag-picker";
 export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId } = await requireOrg();
-  const [contact, companies, allTags] = await Promise.all([
+  const [contact, companies, allTags, defs] = await Promise.all([
     db.contact.findFirst({
       where: { id, orgId },
       include: {
@@ -22,6 +23,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
     }),
     db.company.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.tag.findMany({ where: { orgId }, orderBy: { name: "asc" } }),
+    getDefinitions(orgId, "contact"),
   ]);
   if (!contact) notFound();
 
@@ -36,6 +38,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Details</h2>
             <ContactForm
               companies={companies}
+              customFieldDefs={toFieldViews(defs)}
               initial={{
                 id: contact.id,
                 firstName: contact.firstName,
@@ -45,6 +48,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
                 title: contact.title,
                 companyId: contact.companyId,
                 notes: contact.notes,
+                customFields: contact.customFields as Record<string, unknown> | null,
               }}
             />
           </div>

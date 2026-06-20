@@ -7,6 +7,7 @@ import { requireOrg } from "@/lib/tenant";
 import { requireRole } from "@/lib/rbac";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { ENTITIES, FIELD_TYPES } from "@/lib/custom-fields";
+import { withinLimit } from "@/lib/entitlements";
 
 const baseSchema = z.object({
   entity: z.enum(ENTITIES),
@@ -42,6 +43,12 @@ export async function createFieldDefinition(input: unknown): Promise<ActionResul
 
   const select = validateSelect(d.type, d.config);
   if (!select.ok) return fail("A select field requires at least one option");
+
+  // M4: enforce plan limits across all of the org's custom fields (every entity).
+  const total = await db.customFieldDefinition.count({ where: { orgId } });
+  if (!(await withinLimit(orgId, "customFields", total))) {
+    return fail("Plan limit reached: upgrade your plan to add more custom fields");
+  }
 
   const count = await db.customFieldDefinition.count({ where: { orgId, entity: d.entity } });
   try {

@@ -2,16 +2,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
+import { getDefinitions, toFieldViews } from "@/lib/custom-fields";
 import { PageHeader } from "@/components/page-header";
 import { CompanyForm } from "../company-form";
 
 export default async function CompanyDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId } = await requireOrg();
-  const company = await db.company.findFirst({
-    where: { id, orgId },
-    include: { contacts: { orderBy: { lastName: "asc" } }, deals: { include: { stage: true } } },
-  });
+  const [company, defs] = await Promise.all([
+    db.company.findFirst({
+      where: { id, orgId },
+      include: { contacts: { orderBy: { lastName: "asc" } }, deals: { include: { stage: true } } },
+    }),
+    getDefinitions(orgId, "company"),
+  ]);
   if (!company) notFound();
 
   return (
@@ -21,6 +25,7 @@ export default async function CompanyDetail({ params }: { params: Promise<{ id: 
         <section className="lg:col-span-2">
           <div className="rounded-lg border bg-card p-6">
             <CompanyForm
+              customFieldDefs={toFieldViews(defs)}
               initial={{
                 id: company.id,
                 name: company.name,
@@ -28,6 +33,7 @@ export default async function CompanyDetail({ params }: { params: Promise<{ id: 
                 industry: company.industry,
                 size: company.size,
                 notes: company.notes,
+                customFields: company.customFields as Record<string, unknown> | null,
               }}
             />
           </div>

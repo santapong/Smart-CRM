@@ -54,10 +54,20 @@ beforeAll(async () => {
   });
   orgA = oa.id; orgB = ob.id;
   owner = uo.id; member1 = u1.id; member2 = u2.id; userB = ub.id;
+  // M4: the free plan caps savedViews at 2; this suite creates more, so lift
+  // the cap for both orgs (the over-limit gate is covered in custom-fields.test).
+  await db.entitlement.createMany({
+    data: [
+      { orgId: orgA, key: "savedViews", intValue: -1 },
+      { orgId: orgB, key: "savedViews", intValue: -1 },
+    ],
+  });
 });
 
 afterAll(async () => {
   await db.savedView.deleteMany({ where: { orgId: { in: [orgA, orgB] } } });
+  await db.entitlement.deleteMany({ where: { orgId: { in: [orgA, orgB] } } });
+  await db.subscription.deleteMany({ where: { orgId: { in: [orgA, orgB] } } });
   await db.membership.deleteMany({ where: { orgId: { in: [orgA, orgB] } } });
   await db.organization.deleteMany({ where: { id: { in: [orgA, orgB] } } });
   await db.user.deleteMany({ where: { id: { in: [owner, member1, member2, userB] } } });

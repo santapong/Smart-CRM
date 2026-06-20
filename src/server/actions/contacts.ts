@@ -56,7 +56,6 @@ export async function createContact(input: unknown): Promise<ActionResult<{ id: 
   });
   revalidatePath("/contacts");
   return ok({ id: created.id });
-  // TODO: same pattern for companies/deals
 }
 
 export async function updateContact(id: string, input: unknown): Promise<ActionResult<{ id: string }>> {

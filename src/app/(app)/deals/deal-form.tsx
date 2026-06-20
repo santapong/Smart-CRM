@@ -7,6 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createDeal, updateDeal } from "@/server/actions/deals";
+import {
+  CustomFieldInputs,
+  collectCustomFields,
+  type CustomFieldDef,
+} from "@/components/custom-field-inputs";
 
 type Stage = { id: string; name: string };
 type Pick = { id: string; label: string };
@@ -15,11 +20,13 @@ export function DealForm({
   stages,
   contacts,
   companies,
+  customFieldDefs = [],
   initial,
 }: {
   stages: Stage[];
   contacts: Pick[];
   companies: Pick[];
+  customFieldDefs?: CustomFieldDef[];
   initial?: {
     id: string;
     title: string;
@@ -31,6 +38,7 @@ export function DealForm({
     companyId: string | null;
     closeDate: Date | null;
     notes: string | null;
+    customFields?: Record<string, unknown> | null;
   };
 }) {
   const router = useRouter();
@@ -40,7 +48,10 @@ export function DealForm({
     e.preventDefault();
     setBusy(true);
     const form = new FormData(e.currentTarget);
-    const input = Object.fromEntries(form.entries());
+    const input = {
+      ...Object.fromEntries(form.entries()),
+      customFields: collectCustomFields(form, customFieldDefs),
+    };
     const r = initial ? await updateDeal(initial.id, input) : await createDeal(input);
     setBusy(false);
     if (!r.ok) return toast.error(r.error);
@@ -143,6 +154,7 @@ export function DealForm({
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" name="notes" defaultValue={initial?.notes ?? ""} />
       </div>
+      <CustomFieldInputs defs={customFieldDefs} initial={initial?.customFields} />
       <div className="flex gap-2">
         <Button type="submit" disabled={busy}>
           {busy ? "Saving…" : initial ? "Save changes" : "Create deal"}
