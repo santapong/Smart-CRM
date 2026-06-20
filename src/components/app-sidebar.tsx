@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Building2, KanbanSquare, ListChecks, Settings, LogOut, Search, Inbox, FileInput } from "lucide-react";
+import { LayoutDashboard, Users, Building2, KanbanSquare, ListChecks, Settings, LogOut, Search, Inbox, FileInput, Workflow } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { openCommandPalette } from "@/components/command-palette";
@@ -15,6 +15,7 @@ const NAV = [
   { href: "/deals", label: "Deals", Icon: KanbanSquare },
   { href: "/activities", label: "Activities", Icon: ListChecks },
   { href: "/forms", label: "Forms", Icon: FileInput },
+  { href: "/automations", label: "Automations", Icon: Workflow },
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
 

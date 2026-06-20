@@ -94,6 +94,8 @@ model Organization {
   leadLabels      LeadLabel[]
   forms           Form[]
   formSubmissions FormSubmission[]
+  workflows       Workflow[]
+  workflowRuns    WorkflowRun[]
 }
 
 model Membership {
@@ -575,4 +577,64 @@ model FormSubmission {
   form Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
 
   @@index([orgId, formId])
+}
+
+// ---------- No-code workflow automation (M9) ----------
+
+// A trigger → conditions → ordered actions rule. `definition` is a JSON array of
+// action steps ({ type, ...params }); `conditions` is a JSON Logic rule evaluated
+// against the trigger context. Workflows run when a matching domain event is
+// drained from the outbox (see src/lib/workflows/engine.ts).
+model Workflow {
+  id           String   @id @default(cuid())
+  orgId        String
+  name         String
+  triggerEvent String
+  conditions   Json?
+  definition   Json
+  enabled      Boolean  @default(true)
+  runCount     Int      @default(0)
+  version      Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  runs WorkflowRun[]
+
+  @@index([orgId, triggerEvent, enabled])
+}
+
+// One execution of a Workflow against a single trigger event. `context` is the
+// serialized trigger context (event + loaded record).
+model WorkflowRun {
+  id           String    @id @default(cuid())
+  orgId        String
+  workflowId   String
+  status       String    @default("running") // running | done | failed
+  triggerEvent String
+  context      Json
+  error        String?
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workflow Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  steps    StepRun[]
+
+  @@index([orgId, workflowId])
+}
+
+// One executed action step within a WorkflowRun.
+model StepRun {
+  id        String   @id @default(cuid())
+  runId     String
+  idx       Int
+  type      String
+  status    String // done | failed | skipped
+  output    Json?
+  createdAt DateTime @default(now())
+
+  run WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
 }

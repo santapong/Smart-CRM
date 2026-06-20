@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { dispatchEvent } from "@/lib/workflows/engine";
 
 /**
  * Domain event names (M2). Written to the transactional outbox in the same
@@ -64,9 +65,10 @@ export async function processOutboxBatch(
 
   for (const event of pending) {
     try {
-      // Placeholder for real fan-out: this is where we would dispatch the event
-      // to Inngest (`inngest.send`) or other subscribers/handlers. For now we
-      // simply mark it processed so the outbox stays drained.
+      // Fan-out (M9): run any enabled no-code workflows subscribed to this
+      // org + event. dispatchEvent is defensive (per-run errors are captured),
+      // so a misbehaving workflow won't fail outbox draining.
+      await dispatchEvent(event.orgId, event.name, event.payload);
       await db.outboxEvent.update({
         where: { id: event.id },
         data: { status: "PROCESSED", processedAt: new Date() },

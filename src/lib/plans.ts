@@ -19,6 +19,7 @@ export type PlanLimits = {
   seats: number;
   leads: number;
   forms: number;
+  workflows: number;
 };
 
 export type LimitKey = keyof PlanLimits;
@@ -36,13 +37,13 @@ export const PLANS: Record<PlanKey, Plan> = {
   free: {
     key: "free",
     name: "Free",
-    limits: { pipelines: 1, customFields: 0, savedViews: 2, seats: 3, leads: 100, forms: 1 },
+    limits: { pipelines: 1, customFields: 0, savedViews: 2, seats: 3, leads: 100, forms: 1, workflows: 0 },
     features: ["contacts", "companies", "activities", "dashboard", "search", "leads", "forms"],
   },
   starter: {
     key: "starter",
     name: "Starter",
-    limits: { pipelines: 3, customFields: 25, savedViews: 10, seats: 10, leads: 5000, forms: 10 },
+    limits: { pipelines: 3, customFields: 25, savedViews: 10, seats: 10, leads: 5000, forms: 10, workflows: 5 },
     features: [
       "contacts",
       "companies",
@@ -56,6 +57,8 @@ export const PLANS: Record<PlanKey, Plan> = {
       "saved_views",
       "email",
       "csv_import",
+      "automation",
+      "workflows",
     ],
   },
   pro: {
@@ -68,6 +71,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       seats: 50,
       leads: UNLIMITED,
       forms: UNLIMITED,
+      workflows: UNLIMITED,
     },
     features: [
       "contacts",
@@ -83,6 +87,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "email",
       "csv_import",
       "automation",
+      "workflows",
       "report_builder",
       "api",
       "webhooks",
@@ -98,6 +103,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       seats: UNLIMITED,
       leads: UNLIMITED,
       forms: UNLIMITED,
+      workflows: UNLIMITED,
     },
     features: [
       "contacts",
@@ -113,6 +119,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "email",
       "csv_import",
       "automation",
+      "workflows",
       "report_builder",
       "api",
       "webhooks",
