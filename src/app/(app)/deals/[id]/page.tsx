@@ -9,11 +9,12 @@ import { Comments } from "@/components/comments";
 import { loadCommentsData } from "@/lib/comments-data";
 import { DealForm } from "../deal-form";
 import { DealStatusActions } from "./status-actions";
+import { LineItems } from "./line-items";
 
 export default async function DealDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId, userId, role } = await requireOrg();
-  const [deal, stages, contacts, companies, defs, emails, commentsData] = await Promise.all([
+  const [deal, stages, contacts, companies, defs, emails, commentsData, lineItems, products] = await Promise.all([
     db.deal.findFirst({
       where: { id, orgId },
       include: { activities: { orderBy: { createdAt: "desc" }, take: 20 }, contact: true, company: true, stage: true },
@@ -24,6 +25,8 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
     getDefinitions(orgId, "deal"),
     db.emailMessage.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "desc" }, take: 10 }),
     loadCommentsData(orgId, userId, role, "deal", id),
+    db.dealProduct.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "asc" } }),
+    db.product.findMany({ where: { orgId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, price: true } }),
   ]);
   if (!deal) notFound();
 
@@ -53,6 +56,23 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
               customFields: deal.customFields as Record<string, unknown> | null,
             }}
           />
+          <div className="mt-6 border-t pt-6">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Products</h3>
+            <LineItems
+              dealId={deal.id}
+              currency={deal.currency}
+              items={lineItems.map((li) => ({
+                id: li.id,
+                productId: li.productId,
+                name: li.name,
+                quantity: Number(li.quantity),
+                unitPrice: Number(li.unitPrice),
+                discount: li.discount != null ? Number(li.discount) : null,
+                billing: li.billing,
+              }))}
+              products={products.map((p) => ({ id: p.id, name: p.name, price: Number(p.price) }))}
+            />
+          </div>
           <div className="mt-6 border-t pt-6">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comments</h3>
             <Comments

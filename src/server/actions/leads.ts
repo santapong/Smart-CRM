@@ -8,6 +8,7 @@ import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { recordStageEvent } from "@/lib/stage-history";
 import { emit, EVENTS } from "@/lib/events";
 import { withinLimit } from "@/lib/entitlements";
+import { computeScore } from "@/lib/scoring";
 
 const LEAD_STATUSES = ["NEW", "WORKING", "QUALIFIED", "UNQUALIFIED", "CONVERTED"] as const;
 
@@ -39,6 +40,14 @@ export async function createLead(input: unknown): Promise<ActionResult<{ id: str
     return fail("Plan limit reached: upgrade your plan to add more leads");
   }
   const d = parsed.data;
+  const score = await computeScore(orgId, "lead", {
+    title: d.title,
+    value: d.value ?? null,
+    currency: d.currency,
+    status: d.status,
+    source: c(d.source),
+    sourceChannel: c(d.sourceChannel),
+  });
   const created = await db.$transaction(async (tx) => {
     const lead = await tx.lead.create({
       data: {
@@ -47,6 +56,7 @@ export async function createLead(input: unknown): Promise<ActionResult<{ id: str
         value: d.value ?? null,
         currency: d.currency,
         status: d.status,
+        score,
         ownerId: userId,
         contactId: c(d.contactId),
         companyId: c(d.companyId),
@@ -73,6 +83,15 @@ export async function updateLead(id: string, input: unknown): Promise<ActionResu
   const existing = await db.lead.findFirst({ where: { id, orgId } });
   if (!existing) return fail("Not found");
   const d = parsed.data;
+  const score = await computeScore(orgId, "lead", {
+    title: d.title,
+    value: d.value ?? null,
+    currency: d.currency,
+    status: d.status,
+    source: c(d.source),
+    sourceChannel: c(d.sourceChannel),
+    customFields: existing.customFields,
+  });
   try {
     await db.$transaction(async (tx) => {
       const upd = await optimisticUpdate(tx.lead, {
@@ -84,6 +103,7 @@ export async function updateLead(id: string, input: unknown): Promise<ActionResu
           value: d.value ?? null,
           currency: d.currency,
           status: d.status,
+          score,
           contactId: c(d.contactId),
           companyId: c(d.companyId),
           source: c(d.source),

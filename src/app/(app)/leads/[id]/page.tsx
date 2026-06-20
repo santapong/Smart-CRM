@@ -30,7 +30,10 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
 
   return (
     <>
-      <PageHeader title={lead.title} description={`${lead.status}${lead.source ? ` · ${lead.source}` : ""}`}>
+      <PageHeader
+        title={lead.title}
+        description={`${lead.status}${lead.source ? ` · ${lead.source}` : ""} · Score ${lead.score}`}
+      >
         <ConvertButton id={lead.id} converted={lead.status === "CONVERTED" || !!lead.convertedDealId} />
       </PageHeader>
       <div className="grid gap-6 p-6 lg:grid-cols-3">

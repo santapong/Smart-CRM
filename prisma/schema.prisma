@@ -103,6 +103,9 @@ model Organization {
   goals           Goal[]
   apiKeys         ApiKey[]
   webhookEndpoints WebhookEndpoint[]
+  products        Product[]
+  dealProducts    DealProduct[]
+  scoringRules    ScoringRule[]
 }
 
 model Membership {
@@ -260,6 +263,7 @@ model Deal {
   owner       User?            @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   activities  Activity[]
   stageEvents DealStageEvent[]
+  lineItems   DealProduct[]
 
   @@index([orgId, stageId])
   @@index([orgId, status])
@@ -508,6 +512,7 @@ model Lead {
   value           Decimal?   @db.Decimal(12, 2)
   currency        String     @default("USD")
   status          LeadStatus @default(NEW)
+  score           Int        @default(0)
   ownerId         String?
   contactId       String?
   companyId       String?
@@ -830,4 +835,73 @@ model IdempotencyKey {
 
   @@unique([orgId, key])
   @@index([createdAt])
+}
+
+// ---------- Products & line items (M13a) ----------
+
+// A reusable product/service in an org's catalog. `price`/`cost` are per-unit;
+// line items copy the price onto the deal (so catalog changes don't rewrite
+// historical deals).
+model Product {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  sku       String?
+  unit      String?
+  price     Decimal  @default(0) @db.Decimal(12, 2)
+  cost      Decimal? @db.Decimal(12, 2)
+  currency  String   @default("USD")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org   Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lines DealProduct[]
+
+  @@index([orgId])
+}
+
+// A single line item on a Deal. `productId` is optional so ad-hoc items are
+// allowed; `name`/`unitPrice` are snapshotted. `billing` ∈
+// one_time | monthly | quarterly | annually — recurring items feed MRR/ARR
+// (see src/server/actions/deal-products.ts dealRevenue), one-time items feed
+// the persisted Deal.value.
+model DealProduct {
+  id        String   @id @default(cuid())
+  orgId     String
+  dealId    String
+  productId String?
+  name      String
+  quantity  Decimal  @default(1) @db.Decimal(12, 2)
+  unitPrice Decimal  @db.Decimal(12, 2)
+  discount  Decimal? @db.Decimal(12, 2)
+  billing   String   @default("one_time")
+  createdAt DateTime @default(now())
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deal    Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  product Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, dealId])
+}
+
+// ---------- Rule-based lead scoring (M13a) ----------
+
+// A single scoring rule. `field` is a record key (incl. customFields.* via
+// computeScore), `op` ∈ eq | neq | contains | gt | lt | exists, `value` is the
+// comparison operand (unused for `exists`). Matching rules contribute `points`
+// to the record's score (see src/lib/scoring.ts).
+model ScoringRule {
+  id        String   @id @default(cuid())
+  orgId     String
+  entity    String   @default("lead")
+  field     String
+  op        String
+  value     String?
+  points    Int
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, entity])
 }

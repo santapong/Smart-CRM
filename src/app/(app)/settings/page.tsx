@@ -10,6 +10,7 @@ import { MembersSection } from "./members-section";
 import { CustomFieldsSection } from "./custom-fields-section";
 import { ApiKeysSection } from "./api-keys-section";
 import { WebhooksSection } from "./webhooks-section";
+import { ScoringRulesSection } from "./scoring-rules-section";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function SettingsPage() {
   const { orgId, role } = await requireOrg();
   if (!hasRole(role, "ADMIN")) redirect("/dashboard");
 
-  const [org, members, fieldDefs, apiKeys, webhookEndpoints] = await Promise.all([
+  const [org, members, fieldDefs, apiKeys, webhookEndpoints, scoringRules] = await Promise.all([
     db.organization.findUnique({ where: { id: orgId } }),
     db.membership.findMany({
       where: { orgId },
@@ -37,6 +38,10 @@ export default async function SettingsPage() {
       where: { orgId },
       orderBy: { createdAt: "desc" },
       select: { id: true, url: true, secret: true, enabledEvents: true, status: true, createdAt: true },
+    }),
+    db.scoringRule.findMany({
+      where: { orgId, entity: "lead" },
+      orderBy: { createdAt: "asc" },
     }),
   ]);
   if (!org) redirect("/login");
@@ -72,6 +77,21 @@ export default async function SettingsPage() {
               type: d.type as CustomFieldType,
               required: d.required,
               options: selectOptions(d),
+            }))}
+          />
+        </section>
+        <section className="rounded-lg border bg-card p-6 lg:col-span-2">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Lead scoring</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Rules that add points to a lead&apos;s score. Scores recompute when rules change.
+          </p>
+          <ScoringRulesSection
+            rules={scoringRules.map((r) => ({
+              id: r.id,
+              field: r.field,
+              op: r.op,
+              value: r.value,
+              points: r.points,
             }))}
           />
         </section>

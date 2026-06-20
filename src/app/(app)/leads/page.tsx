@@ -20,20 +20,30 @@ function isStatus(v: string): v is (typeof STATUSES)[number] {
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; sort?: string }>;
 }) {
   const { orgId } = await requireOrg();
-  const { status: statusParam } = await searchParams;
+  const { status: statusParam, sort } = await searchParams;
   const status = statusParam && isStatus(statusParam) ? statusParam : "";
+  const sortByScore = sort === "score";
 
   const leads = await db.lead.findMany({
     where: { orgId, ...(status ? { status } : {}) },
     include: { labels: { include: { label: true } } },
-    orderBy: { createdAt: "desc" },
+    orderBy: sortByScore ? [{ score: "desc" }, { createdAt: "desc" }] : { createdAt: "desc" },
     take: 200,
   });
 
-  const filterHref = (s: string) => (s ? `/leads?status=${s}` : "/leads");
+  const params = (over: { status?: string; sort?: string }) => {
+    const next = new URLSearchParams();
+    const s = over.status ?? status;
+    const so = over.sort ?? (sortByScore ? "score" : "");
+    if (s) next.set("status", s);
+    if (so) next.set("sort", so);
+    const qs = next.toString();
+    return qs ? `/leads?${qs}` : "/leads";
+  };
+  const filterHref = (s: string) => params({ status: s });
 
   return (
     <>
@@ -90,6 +100,11 @@ export default async function LeadsPage({
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>
+                    <Link href={params({ sort: sortByScore ? "" : "score" })} className="inline-flex items-center gap-1 hover:underline">
+                      Score {sortByScore ? "↓" : ""}
+                    </Link>
+                  </TableHead>
                   <TableHead>Value</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Labels</TableHead>
@@ -104,6 +119,7 @@ export default async function LeadsPage({
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{l.status}</TableCell>
+                    <TableCell className="tabular-nums font-medium">{l.score}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {l.value != null ? `${l.currency} ${Number(l.value).toLocaleString()}` : "—"}
                     </TableCell>
