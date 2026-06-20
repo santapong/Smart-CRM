@@ -110,6 +110,8 @@ model Organization {
   sequenceEnrollments SequenceEnrollment[]
   importJobs      ImportJob[]
   mergeLogs       MergeLog[]
+  connections     Connection[]
+  secrets         EncryptedSecret[]
 }
 
 model Membership {
@@ -1032,6 +1034,48 @@ model MergeLog {
   createdAt   DateTime @default(now())
 
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// A configured third-party integration for an org (M15). `provider` is a
+// registry key ("slack", "gmail", …); `config` holds non-secret settings such
+// as the list of domain events the connection should be notified about
+// (config.events). Secrets (e.g. a Slack incoming-webhook URL) live in the
+// related EncryptedSecret rows, never here. Org-scoped.
+model Connection {
+  id        String   @id @default(cuid())
+  orgId     String
+  provider  String
+  label     String?
+  status    String   @default("active") // active | disabled
+  config    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org     Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  secrets EncryptedSecret[]
+
+  @@index([orgId, provider])
+}
+
+// An envelope-encrypted secret (M15). Ciphertext is AES-256-GCM; `keyId`
+// records which key encrypted it ("dev" for the labeled dev-only fallback) so
+// rotation is possible. `iv`, `authTag`, `ciphertext` are base64. Never store
+// plaintext. Org-scoped; optionally tied to a Connection.
+model EncryptedSecret {
+  id           String   @id @default(cuid())
+  orgId        String
+  connectionId String?
+  name         String
+  keyId        String
+  iv           String
+  authTag      String
+  ciphertext   String
+  createdAt    DateTime @default(now())
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  connection Connection?  @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
 }

@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { dispatchWebhooks } from "@/lib/webhooks";
+import { dispatchSlack } from "@/lib/integrations/slack";
 
 /**
  * Domain event names (M2). Written to the transactional outbox in the same
@@ -75,6 +76,10 @@ export async function processOutboxBatch(
       // dispatchWebhooks is env-tolerant — network failures are recorded on the
       // delivery row, never thrown, so they don't fail the drain.
       await dispatchWebhooks(event);
+      // Fan-out (M15): notify the org's configured Slack connections. Also
+      // env-tolerant — a missing/failed Slack webhook is swallowed, never
+      // thrown, so it can't disrupt the drain.
+      await dispatchSlack(event);
       // updateMany guarded by status: a concurrent drainer (or a deleted row)
       // is a no-op (count 0) rather than a thrown "record not found".
       const upd = await db.outboxEvent.updateMany({

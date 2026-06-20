@@ -144,6 +144,15 @@ export default async function SettingsPage() {
             </Button>
           </div>
         </section>
+        <section className="rounded-lg border bg-card p-6 lg:col-span-2">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Integrations</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Connect Slack, Gmail, Calendar, and Zapier. Slack posts deal and lead alerts to a channel.
+          </p>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/settings/integrations">Manage integrations</Link>
+          </Button>
+        </section>
       </div>
     </>
   );

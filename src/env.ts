@@ -27,6 +27,14 @@ export const env = createEnv({
     // graceful "AI is not configured" result. AI_MODEL overrides the default.
     ANTHROPIC_API_KEY: z.string().optional(),
     AI_MODEL: z.string().optional(),
+    // Integrations framework (M15) — all env-gated.
+    // Secrets vault key: base64-encoded 32 bytes. When unset, src/lib/crypto.ts
+    // falls back to a clearly-labeled DEV-ONLY key so local/test still works.
+    ENCRYPTION_KEY: z.string().optional(),
+    // Nango (managed OAuth) — only needed to enable Gmail/Calendar connect.
+    // With no key the OAuth providers stay scaffolded/disabled in the UI.
+    NANGO_SECRET_KEY: z.string().optional(),
+    NANGO_HOST: z.string().url().optional(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   },
   client: {
@@ -52,6 +60,9 @@ export const env = createEnv({
     SENTRY_DSN: process.env.SENTRY_DSN,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     AI_MODEL: process.env.AI_MODEL,
+    ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    NANGO_SECRET_KEY: process.env.NANGO_SECRET_KEY,
+    NANGO_HOST: process.env.NANGO_HOST,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
