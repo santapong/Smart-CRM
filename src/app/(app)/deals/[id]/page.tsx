@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { getDefinitions, toFieldViews } from "@/lib/custom-fields";
+import { hasFeature } from "@/lib/entitlements";
 import { PageHeader } from "@/components/page-header";
 import { SendEmailDialog } from "@/components/email/send-email-dialog";
+import { SummarizeDeal } from "@/components/ai/summarize-deal";
 import { EmailList } from "@/components/email/email-list";
 import { Comments } from "@/components/comments";
 import { loadCommentsData } from "@/lib/comments-data";
@@ -14,7 +16,7 @@ import { LineItems } from "./line-items";
 export default async function DealDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId, userId, role } = await requireOrg();
-  const [deal, stages, contacts, companies, defs, emails, commentsData, lineItems, products] = await Promise.all([
+  const [deal, stages, contacts, companies, defs, emails, commentsData, lineItems, products, aiEnabled] = await Promise.all([
     db.deal.findFirst({
       where: { id, orgId },
       include: { activities: { orderBy: { createdAt: "desc" }, take: 20 }, contact: true, company: true, stage: true },
@@ -27,6 +29,7 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
     loadCommentsData(orgId, userId, role, "deal", id),
     db.dealProduct.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "asc" } }),
     db.product.findMany({ where: { orgId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, price: true } }),
+    hasFeature(orgId, "ai"),
   ]);
   if (!deal) notFound();
 
@@ -84,6 +87,11 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
           </div>
         </section>
         <aside className="space-y-4">
+          {aiEnabled && (
+            <div className="rounded-lg border bg-card p-4">
+              <SummarizeDeal dealId={deal.id} />
+            </div>
+          )}
           <div className="rounded-lg border bg-card p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Emails</h3>

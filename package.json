@@ -22,6 +22,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
     "@auth/prisma-adapter": "^2.7.4",
     "@casl/ability": "^7.0.0",
     "@dnd-kit/core": "^6.1.0",

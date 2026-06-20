@@ -23,6 +23,10 @@ export const env = createEnv({
     UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
     // Error monitoring (M1) — env-gated; Sentry stays off unless a DSN is set.
     SENTRY_DSN: z.string().optional(),
+    // AI assistant (M14) — env-gated; with no key the assistant returns a
+    // graceful "AI is not configured" result. AI_MODEL overrides the default.
+    ANTHROPIC_API_KEY: z.string().optional(),
+    AI_MODEL: z.string().optional(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   },
   client: {
@@ -46,6 +50,8 @@ export const env = createEnv({
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
     SENTRY_DSN: process.env.SENTRY_DSN,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    AI_MODEL: process.env.AI_MODEL,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,

@@ -99,6 +99,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "report_builder",
       "api",
       "webhooks",
+      "ai",
     ],
   },
   business: {
@@ -135,6 +136,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "report_builder",
       "api",
       "webhooks",
+      "ai",
       "teams",
       "sso",
       "recurring_revenue",
