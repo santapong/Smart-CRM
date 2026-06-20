@@ -20,6 +20,8 @@ export const EVENTS = {
   LEAD_CONVERTED: "lead.converted",
   FORM_SUBMITTED: "form.submitted",
   COMMENT_CREATED: "comment.created",
+  DOCUMENT_GENERATED: "document.generated",
+  SIGNATURE_REQUESTED: "signature.requested",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

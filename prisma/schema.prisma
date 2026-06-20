@@ -115,6 +115,10 @@ model Organization {
   customRoles     CustomRole[]
   teams           Team[]
   ssoConnections  SSOConnection[]
+  documentTemplates DocumentTemplate[]
+  documents       Document[]
+  attachments     Attachment[]
+  signatureRequests SignatureRequest[]
 }
 
 model Membership {
@@ -149,9 +153,11 @@ model Company {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  contacts Contact[]
-  deals    Deal[]
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contacts    Contact[]
+  deals       Deal[]
+  documents   Document[]
+  attachments Attachment[]
 
   @@index([orgId, name])
 }
@@ -171,11 +177,13 @@ model Contact {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  company    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  tags       ContactTag[]
-  deals      Deal[]
-  activities Activity[]
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  company     Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  tags        ContactTag[]
+  deals       Deal[]
+  activities  Activity[]
+  documents   Document[]
+  attachments Attachment[]
 
   @@index([orgId, lastName])
   @@index([orgId, email])
@@ -275,6 +283,8 @@ model Deal {
   activities  Activity[]
   stageEvents DealStageEvent[]
   lineItems   DealProduct[]
+  documents   Document[]
+  attachments Attachment[]
 
   @@index([orgId, stageId])
   @@index([orgId, status])
@@ -1146,4 +1156,122 @@ model SSOConnection {
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
+}
+
+// ---------- Smart-Docs + eSign (M18) ----------
+
+// A reusable merge-field document template. `body` contains {{ path.to.value }}
+// tokens resolved against deal/contact/company/org context at generate time (see
+// src/lib/documents.ts). Org-scoped; names are unique per org.
+model DocumentTemplate {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  body        String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+enum DocumentStatus {
+  DRAFT
+  SENT
+  SIGNED
+}
+
+// A generated document — the rendered output of a DocumentTemplate against a
+// record's context, persisted as plain text in `content`. Optionally linked to
+// the source template and the deal/contact/company it was generated for.
+model Document {
+  id          String         @id @default(cuid())
+  orgId       String
+  templateId  String?
+  dealId      String?
+  contactId   String?
+  companyId   String?
+  title       String
+  content     String         @db.Text
+  status      DocumentStatus @default(DRAFT)
+  createdById String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  org               Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  template          DocumentTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  deal              Deal?              @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  contact           Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  attachments       Attachment[]
+  signatureRequests SignatureRequest[]
+
+  @@index([orgId])
+  @@index([orgId, dealId])
+}
+
+// An uploaded file (M18). Bytes live behind a pluggable storage adapter
+// (src/lib/storage.ts): local filesystem by default, Vercel Blob when
+// BLOB_READ_WRITE_TOKEN is set. `storageKey` is the adapter's opaque locator
+// (unique); `url` is set for backends that expose a public URL (Blob). Optional
+// links tie the file to a deal/contact/company/document. Org-scoped.
+model Attachment {
+  id           String   @id @default(cuid())
+  orgId        String
+  filename     String
+  contentType  String
+  size         Int
+  storageKey   String   @unique
+  url          String?
+  dealId       String?
+  contactId    String?
+  companyId    String?
+  documentId   String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deal     Deal?        @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  contact  Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company  Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  document Document?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, documentId])
+}
+
+enum SignatureStatus {
+  PENDING
+  SENT
+  SIGNED
+  DECLINED
+  CANCELLED
+}
+
+// An eSignature request for a Document (M18 — env-gated scaffold). `provider` is
+// the eSign provider key ("dropbox_sign" by default); `externalId` holds the
+// provider's request id once sent. `signers` is a JSON array of { email, name }.
+// The live send/callback only happens once ESIGN_* env is configured (see
+// src/lib/esign.ts); without it the request is recorded PENDING. Org-scoped.
+model SignatureRequest {
+  id          String          @id @default(cuid())
+  orgId       String
+  documentId  String
+  provider    String
+  externalId  String?
+  status      SignatureStatus @default(PENDING)
+  signers     Json
+  createdById String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  document Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, documentId])
 }

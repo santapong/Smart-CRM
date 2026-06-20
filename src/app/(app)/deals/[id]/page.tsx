@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { getDefinitions, toFieldViews } from "@/lib/custom-fields";
@@ -9,14 +10,16 @@ import { SummarizeDeal } from "@/components/ai/summarize-deal";
 import { EmailList } from "@/components/email/email-list";
 import { Comments } from "@/components/comments";
 import { loadCommentsData } from "@/lib/comments-data";
+import { Attachments } from "@/components/documents/attachments";
 import { DealForm } from "../deal-form";
 import { DealStatusActions } from "./status-actions";
 import { LineItems } from "./line-items";
+import { GenerateDocument } from "./generate-document";
 
 export default async function DealDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId, userId, role } = await requireOrg();
-  const [deal, stages, contacts, companies, defs, emails, commentsData, lineItems, products, aiEnabled] = await Promise.all([
+  const [deal, stages, contacts, companies, defs, emails, commentsData, lineItems, products, aiEnabled, templates, attachments, documents] = await Promise.all([
     db.deal.findFirst({
       where: { id, orgId },
       include: { activities: { orderBy: { createdAt: "desc" }, take: 20 }, contact: true, company: true, stage: true },
@@ -30,6 +33,9 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
     db.dealProduct.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "asc" } }),
     db.product.findMany({ where: { orgId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, price: true } }),
     hasFeature(orgId, "ai"),
+    db.documentTemplate.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.attachment.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "desc" } }),
+    db.document.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "desc" }, take: 10, select: { id: true, title: true, status: true } }),
   ]);
   if (!deal) notFound();
 
@@ -100,6 +106,35 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
             <EmailList
               emails={emails}
               hint={deal.contact?.email ? undefined : "Link a contact with an email to send messages."}
+            />
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Documents</h3>
+            <GenerateDocument dealId={deal.id} templates={templates} />
+            {documents.length > 0 && (
+              <ul className="mt-3 space-y-1 border-t pt-3 text-sm">
+                {documents.map((d) => (
+                  <li key={d.id} className="flex items-center justify-between gap-2">
+                    <Link href={`/documents/${d.id}`} className="truncate hover:underline">
+                      {d.title}
+                    </Link>
+                    <span className="shrink-0 text-xs text-muted-foreground">{d.status}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Attachments</h3>
+            <Attachments
+              entity="deal"
+              entityId={deal.id}
+              attachments={attachments.map((a) => ({
+                id: a.id,
+                filename: a.filename,
+                size: a.size,
+                storageKey: a.storageKey,
+              }))}
             />
           </div>
           <div className="rounded-lg border bg-card p-4">

@@ -21,6 +21,10 @@ export const authConfig = {
         // session — env-gated 501 until JACKSON_* is set. See src/lib/sso.ts.
         nextUrl.pathname.startsWith("/api/scim") ||
         nextUrl.pathname.startsWith("/api/email") ||
+        // eSign provider status callback (M18): authenticated by the provider
+        // signature, not a session — env-gated 501 until DROPBOX_SIGN_API_KEY is
+        // set. See src/lib/esign.ts.
+        nextUrl.pathname.startsWith("/api/esign") ||
         nextUrl.pathname.startsWith("/api/forms") ||
         // Public REST API (M12): authenticated via API key (Bearer), not a
         // session — see src/lib/api/auth.ts.

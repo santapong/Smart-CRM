@@ -46,6 +46,13 @@ export const env = createEnv({
     PUSHER_KEY: z.string().optional(),
     PUSHER_SECRET: z.string().optional(),
     PUSHER_CLUSTER: z.string().optional(),
+    // Smart-Docs file storage (M18) — env-gated. With BLOB_READ_WRITE_TOKEN unset
+    // the storage adapter (src/lib/storage.ts) falls back to the local filesystem
+    // (.uploads/), so uploads work with zero config. Set this to use Vercel Blob.
+    BLOB_READ_WRITE_TOKEN: z.string().optional(),
+    // eSign (M18) — env-gated scaffold. With DROPBOX_SIGN_API_KEY unset the eSign
+    // helpers return "not configured" and the /api/esign/webhook route 501s.
+    DROPBOX_SIGN_API_KEY: z.string().optional(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   },
   client: {
@@ -85,6 +92,8 @@ export const env = createEnv({
     PUSHER_KEY: process.env.PUSHER_KEY,
     PUSHER_SECRET: process.env.PUSHER_SECRET,
     PUSHER_CLUSTER: process.env.PUSHER_CLUSTER,
+    BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
+    DROPBOX_SIGN_API_KEY: process.env.DROPBOX_SIGN_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
