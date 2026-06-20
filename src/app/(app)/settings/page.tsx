@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
@@ -5,6 +6,7 @@ import { hasRole } from "@/lib/rbac";
 import { selectOptions, type CustomFieldEntity, type CustomFieldType } from "@/lib/custom-fields";
 import { EVENTS } from "@/lib/events";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { OrgNameForm } from "./org-name-form";
 import { MembersSection } from "./members-section";
 import { CustomFieldsSection } from "./custom-fields-section";
@@ -127,6 +129,20 @@ export default async function SettingsPage() {
               createdAt: w.createdAt.toISOString(),
             }))}
           />
+        </section>
+        <section className="rounded-lg border bg-card p-6 lg:col-span-2">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Data</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Import records from a CSV, or find and merge duplicate contacts and companies.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href="/import">Import CSV</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/settings/duplicates">Find duplicates</Link>
+            </Button>
+          </div>
         </section>
       </div>
     </>

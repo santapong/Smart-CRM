@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Building2, KanbanSquare, ListChecks, Settings, LogOut, Search, Inbox, FileInput, Workflow, BarChart3, CalendarDays, Package, Send } from "lucide-react";
+import { LayoutDashboard, Users, Building2, KanbanSquare, ListChecks, Settings, LogOut, Search, Inbox, FileInput, Workflow, BarChart3, CalendarDays, Package, Send, Upload } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { openCommandPalette } from "@/components/command-palette";
@@ -20,6 +20,7 @@ const NAV = [
   { href: "/forms", label: "Forms", Icon: FileInput },
   { href: "/sequences", label: "Sequences", Icon: Send },
   { href: "/automations", label: "Automations", Icon: Workflow },
+  { href: "/import", label: "Import", Icon: Upload },
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
 

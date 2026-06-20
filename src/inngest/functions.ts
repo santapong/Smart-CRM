@@ -5,6 +5,7 @@ import { buildContext, runWorkflow } from "@/lib/workflows/engine";
 import { sendNotificationDigests } from "@/lib/notification-digest";
 import { retryPendingWebhooks } from "@/lib/webhooks";
 import { processDueEnrollments } from "@/lib/sequences/runner";
+import { processImportJob } from "@/lib/import/runner";
 
 /**
  * Drain the transactional outbox on a schedule (M2). Runs every minute and
@@ -80,4 +81,19 @@ export const sequenceTick = inngest.createFunction(
   },
 );
 
-export const functions = [outboxDrain, runWorkflowJob, notificationDigest, webhookRetry, sequenceTick];
+/**
+ * Process a large CSV import out-of-band (M13c). Small imports run inline in the
+ * createImportJob action; bigger ones are handed off here via the `import/run`
+ * event so the request returns quickly. The runner is defensive — a bad row
+ * records an ImportRowError and never aborts the job.
+ */
+export const importRunJob = inngest.createFunction(
+  { id: "import-run", triggers: [{ event: "import/run" }] },
+  async ({ event }) => {
+    const { jobId } = (event.data ?? {}) as { jobId: string };
+    if (!jobId) return { skipped: "no_job_id" };
+    return processImportJob(jobId);
+  },
+);
+
+export const functions = [outboxDrain, runWorkflowJob, notificationDigest, webhookRetry, sequenceTick, importRunJob];

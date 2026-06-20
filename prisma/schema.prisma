@@ -108,6 +108,8 @@ model Organization {
   scoringRules    ScoringRule[]
   sequences       Sequence[]
   sequenceEnrollments SequenceEnrollment[]
+  importJobs      ImportJob[]
+  mergeLogs       MergeLog[]
 }
 
 model Membership {
@@ -967,4 +969,69 @@ model SequenceEnrollment {
 
   @@index([orgId, status, nextRunAt])
   @@index([sequenceId])
+}
+
+// ---------- Guided CSV import + dedupe/merge (M13c) ----------
+
+// A single CSV import run. `raw` is the uploaded CSV text; `mapping` maps source
+// header → entity field (or "customFields.key"); `dupeMode` ∈ skip|update|create
+// decides what to do when an existing record matches the dedupe key
+// (contact→email, company→domain||name). Rows are processed defensively by
+// src/lib/import/runner.ts — one bad row records an ImportRowError and never
+// aborts the job.
+model ImportJob {
+  id          String    @id @default(cuid())
+  orgId       String
+  entity      String // "contact" | "company"
+  status      String    @default("pending") // pending | running | done | failed
+  fileName    String?
+  raw         String    @db.Text
+  mapping     Json
+  dupeMode    String    @default("skip") // skip | update | create
+  totalRows   Int       @default(0)
+  processed   Int       @default(0)
+  created     Int       @default(0)
+  updated     Int       @default(0)
+  failed      Int       @default(0)
+  createdById String?
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  org    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  errors ImportRowError[]
+
+  @@index([orgId])
+}
+
+// A per-row failure within an ImportJob (validation/persist error). `raw` is the
+// offending source row so the user can fix and re-import.
+model ImportRowError {
+  id          String   @id @default(cuid())
+  importJobId String
+  rowNumber   Int
+  message     String
+  raw         Json
+  createdAt   DateTime @default(now())
+
+  importJob ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  @@index([importJobId])
+}
+
+// An audit + undo record for a record merge (M13c). `snapshot` captures the
+// deleted source record plus a relink summary so undoMerge can best-effort
+// restore it (recreate source + move children back). Org-scoped.
+model MergeLog {
+  id          String   @id @default(cuid())
+  orgId       String
+  entity      String // "contact" | "company"
+  targetId    String
+  sourceId    String
+  snapshot    Json
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
