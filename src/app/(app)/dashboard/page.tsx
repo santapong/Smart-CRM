@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PipelineChart } from "./pipeline-chart";
 import { formatCurrency } from "@/lib/utils";
 import { weightedValue } from "@/lib/pipeline";
+import { listGoalsWithProgress } from "@/server/actions/goals";
+import { DashboardGoals } from "./dashboard-goals";
 import { format } from "date-fns";
 import Link from "next/link";
 
@@ -13,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const { orgId } = await requireOrg();
 
-  const [stages, openDeals, wonDeals, lostDeals, activities, contactCount, companyCount] = await Promise.all([
+  const [stages, openDeals, wonDeals, lostDeals, activities, contactCount, companyCount, goals] = await Promise.all([
     db.pipelineStage.findMany({ where: { orgId }, orderBy: { order: "asc" } }),
     db.deal.findMany({ where: { orgId, status: "OPEN" } }),
     db.deal.findMany({ where: { orgId, status: "WON" } }),
@@ -26,6 +28,7 @@ export default async function DashboardPage() {
     }),
     db.contact.count({ where: { orgId } }),
     db.company.count({ where: { orgId } }),
+    listGoalsWithProgress(),
   ]);
 
   const stageById = new Map(stages.map((s) => [s.id, s]));
@@ -107,6 +110,11 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+      {goals.length > 0 && (
+        <div className="px-6 pb-6">
+          <DashboardGoals goals={goals} />
+        </div>
+      )}
     </>
   );
 }

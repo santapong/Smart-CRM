@@ -20,6 +20,7 @@ export type PlanLimits = {
   leads: number;
   forms: number;
   workflows: number;
+  reports: number;
 };
 
 export type LimitKey = keyof PlanLimits;
@@ -37,13 +38,13 @@ export const PLANS: Record<PlanKey, Plan> = {
   free: {
     key: "free",
     name: "Free",
-    limits: { pipelines: 1, customFields: 0, savedViews: 2, seats: 3, leads: 100, forms: 1, workflows: 0 },
+    limits: { pipelines: 1, customFields: 0, savedViews: 2, seats: 3, leads: 100, forms: 1, workflows: 0, reports: 3 },
     features: ["contacts", "companies", "activities", "dashboard", "search", "leads", "forms"],
   },
   starter: {
     key: "starter",
     name: "Starter",
-    limits: { pipelines: 3, customFields: 25, savedViews: 10, seats: 10, leads: 5000, forms: 10, workflows: 5 },
+    limits: { pipelines: 3, customFields: 25, savedViews: 10, seats: 10, leads: 5000, forms: 10, workflows: 5, reports: 25 },
     features: [
       "contacts",
       "companies",
@@ -72,6 +73,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       leads: UNLIMITED,
       forms: UNLIMITED,
       workflows: UNLIMITED,
+      reports: UNLIMITED,
     },
     features: [
       "contacts",
@@ -104,6 +106,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       leads: UNLIMITED,
       forms: UNLIMITED,
       workflows: UNLIMITED,
+      reports: UNLIMITED,
     },
     features: [
       "contacts",

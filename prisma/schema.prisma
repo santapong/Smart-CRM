@@ -98,6 +98,9 @@ model Organization {
   workflowRuns    WorkflowRun[]
   notifications   Notification[]
   comments        Comment[]
+  reports         Report[]
+  dashboards      Dashboard[]
+  goals           Goal[]
 }
 
 model Membership {
@@ -694,4 +697,60 @@ model Comment {
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId, entityType, entityId])
+}
+
+// ---------- Reporting & goals (M11) ----------
+
+// A saved, parameterized report. `kind` selects the runner
+// (funnel | velocity | win_loss | lead_source | pipeline_value | activity) and
+// `spec` carries its JSON filters (pipelineId, date range, owner, …). `chartType`
+// is a UI hint (bar | line | area | pie). Runners live in src/lib/reports.
+model Report {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  kind      String
+  spec      Json
+  chartType String   @default("bar")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// A user-arranged collection of reports. `layout` is an ordered JSON array of
+// { reportId, position } entries rendered as a grid of widgets.
+model Dashboard {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  layout    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// A measurable target over a time window. `metric` ∈
+// deals_won_value | deals_won_count | deals_created | activities_completed.
+// `ownerId` optionally scopes the goal to a single user. Progress is computed
+// on read (see src/lib/reports/goals.ts).
+model Goal {
+  id        String   @id @default(cuid())
+  orgId     String
+  ownerId   String?
+  metric    String
+  target    Decimal  @db.Decimal(14, 2)
+  period    String
+  startsAt  DateTime
+  endsAt    DateTime
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
