@@ -112,16 +112,21 @@ model Organization {
   mergeLogs       MergeLog[]
   connections     Connection[]
   secrets         EncryptedSecret[]
+  customRoles     CustomRole[]
+  teams           Team[]
+  ssoConnections  SSOConnection[]
 }
 
 model Membership {
-  id     String @id @default(cuid())
-  userId String
-  orgId  String
-  role   Role   @default(MEMBER)
+  id           String  @id @default(cuid())
+  userId       String
+  orgId        String
+  role         Role    @default(MEMBER)
+  customRoleId String?
 
-  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customRole CustomRole?  @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
@@ -1076,6 +1081,69 @@ model EncryptedSecret {
 
   org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   connection Connection?  @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// ---------- Advanced RBAC + teams (M16) ----------
+
+// A per-org named permission bundle that ADDS grants on top of a member's base
+// Role. `permissions` are "action:subject" strings (e.g. "manage:deal",
+// "read:contact", "manage:org"); see src/lib/authz.ts for the allowed set and
+// how they compose with the base role.
+model CustomRole {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  permissions String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  memberships Membership[]
+
+  @@unique([orgId, name])
+}
+
+// A named group of users within an org. Powers future visibility/territory
+// scoping; helpers live in src/lib/teams.ts.
+model Team {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members TeamMember[]
+
+  @@unique([orgId, name])
+}
+
+model TeamMember {
+  teamId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+}
+
+// A per-org SSO (SAML) connection (M16 — scaffold, env-gated). `metadataXml`
+// holds the IdP's SAML metadata; the live flow is wired only when JACKSON_* env
+// is set (see src/lib/sso.ts). `status` ∈ inactive | active.
+model SSOConnection {
+  id          String   @id @default(cuid())
+  orgId       String
+  provider    String   @default("saml")
+  label       String?
+  metadataXml String?  @db.Text
+  status      String   @default("inactive")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
 }

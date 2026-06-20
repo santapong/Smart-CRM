@@ -13,6 +13,10 @@ import { CustomFieldsSection } from "./custom-fields-section";
 import { ApiKeysSection } from "./api-keys-section";
 import { WebhooksSection } from "./webhooks-section";
 import { ScoringRulesSection } from "./scoring-rules-section";
+import { RolesSection } from "./roles-section";
+import { TeamsSection } from "./teams-section";
+import { SSOSection } from "./sso-section";
+import { ssoConfigured } from "@/lib/sso";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +24,8 @@ export default async function SettingsPage() {
   const { orgId, role } = await requireOrg();
   if (!hasRole(role, "ADMIN")) redirect("/dashboard");
 
-  const [org, members, fieldDefs, apiKeys, webhookEndpoints, scoringRules] = await Promise.all([
+  const [org, members, fieldDefs, apiKeys, webhookEndpoints, scoringRules, customRoles, teams, ssoConnections] =
+    await Promise.all([
     db.organization.findUnique({ where: { id: orgId } }),
     db.membership.findMany({
       where: { orgId },
@@ -45,8 +50,30 @@ export default async function SettingsPage() {
       where: { orgId, entity: "lead" },
       orderBy: { createdAt: "asc" },
     }),
+    db.customRole.findMany({ where: { orgId }, orderBy: { name: "asc" } }),
+    db.team.findMany({
+      where: { orgId },
+      orderBy: { name: "asc" },
+      include: { members: { orderBy: { createdAt: "asc" } } },
+    }),
+    db.sSOConnection.findMany({ where: { orgId }, orderBy: { createdAt: "desc" } }),
   ]);
   if (!org) redirect("/login");
+
+  // Resolve team member display info from the org's membership list (TeamMember
+  // has no User relation by design — keeps the model lean).
+  const usersById = new Map(members.map((m) => [m.userId, m.user]));
+  const teamRows = teams.map((t) => ({
+    id: t.id,
+    name: t.name,
+    members: t.members
+      .map((tm) => {
+        const u = usersById.get(tm.userId);
+        return u ? { userId: u.id, name: u.name, email: u.email } : null;
+      })
+      .filter((m): m is { userId: string; name: string | null; email: string } => m !== null),
+  }));
+  const orgMembers = members.map((m) => ({ userId: m.userId, name: m.user.name, email: m.user.email }));
 
   return (
     <>
@@ -65,6 +92,44 @@ export default async function SettingsPage() {
               userId: m.userId,
               email: m.user.email,
               name: m.user.name,
+            }))}
+          />
+        </section>
+        <section className="rounded-lg border bg-card p-6">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Roles &amp; permissions</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Define custom roles that add permissions on top of a member&apos;s base role, then assign them.
+          </p>
+          <RolesSection
+            roles={customRoles.map((r) => ({ id: r.id, name: r.name, permissions: r.permissions }))}
+            members={members.map((m) => ({
+              id: m.id,
+              name: m.user.name,
+              email: m.user.email,
+              role: m.role,
+              customRoleId: m.customRoleId,
+            }))}
+          />
+        </section>
+        <section className="rounded-lg border bg-card p-6">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Teams</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Group members into teams. Powers future visibility and territory rules.
+          </p>
+          <TeamsSection teams={teamRows} members={orgMembers} />
+        </section>
+        <section className="rounded-lg border bg-card p-6 lg:col-span-2">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">SSO (SAML)</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Store your identity provider&apos;s SAML metadata for single sign-on.
+          </p>
+          <SSOSection
+            configured={ssoConfigured()}
+            connections={ssoConnections.map((c) => ({
+              id: c.id,
+              label: c.label,
+              status: c.status,
+              hasMetadata: !!c.metadataXml,
             }))}
           />
         </section>

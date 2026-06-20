@@ -35,6 +35,10 @@ export const env = createEnv({
     // With no key the OAuth providers stay scaffolded/disabled in the UI.
     NANGO_SECRET_KEY: z.string().optional(),
     NANGO_HOST: z.string().url().optional(),
+    // SSO/SCIM (M16) — env-gated scaffold. With JACKSON_URL unset the SSO/SCIM
+    // routes return 501 and the UI shows a "set JACKSON_* to enable" hint.
+    JACKSON_URL: z.string().url().optional(),
+    JACKSON_API_KEY: z.string().optional(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   },
   client: {
@@ -63,6 +67,8 @@ export const env = createEnv({
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
     NANGO_SECRET_KEY: process.env.NANGO_SECRET_KEY,
     NANGO_HOST: process.env.NANGO_HOST,
+    JACKSON_URL: process.env.JACKSON_URL,
+    JACKSON_API_KEY: process.env.JACKSON_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
