@@ -6,7 +6,9 @@ import { EmptyState } from "@/components/empty-state";
 import { TagBadge } from "@/components/tag-badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ContactSavedViews } from "./saved-views";
 import { cn } from "@/lib/utils";
+import { hasRole } from "@/lib/rbac";
 import { Download, Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +18,12 @@ export default async function ContactsPage({
 }: {
   searchParams: Promise<{ q?: string; tag?: string }>;
 }) {
-  const { orgId } = await requireOrg();
+  const { orgId, userId, role } = await requireOrg();
   const { q: qParam, tag: tagParam } = await searchParams;
   const q = qParam?.trim() ?? "";
   const tagId = tagParam?.trim() ?? "";
 
-  const [contacts, allTags] = await Promise.all([
+  const [contacts, allTags, savedViews] = await Promise.all([
     db.contact.findMany({
       where: {
         orgId,
@@ -44,7 +46,26 @@ export default async function ContactsPage({
       take: 200,
     }),
     db.tag.findMany({ where: { orgId }, orderBy: { name: "asc" } }),
+    db.savedView.findMany({
+      where: { orgId, entity: "contact", OR: [{ shared: true }, { ownerId: userId }] },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
+
+  const canManageViews = hasRole(role, "ADMIN");
+  const views = savedViews.map((v) => {
+    const f = (v.filters ?? {}) as { q?: unknown; tag?: unknown };
+    return {
+      id: v.id,
+      name: v.name,
+      shared: v.shared,
+      filters: {
+        q: typeof f.q === "string" ? f.q : undefined,
+        tag: typeof f.tag === "string" ? f.tag : undefined,
+      },
+      canDelete: v.ownerId === userId || canManageViews,
+    };
+  });
 
   const filterHref = (id: string) => {
     const params = new URLSearchParams();
@@ -106,6 +127,9 @@ export default async function ContactsPage({
               })}
             </div>
           )}
+          <div className="ml-auto">
+            <ContactSavedViews views={views} current={{ q: q || undefined, tag: tagId || undefined }} />
+          </div>
         </div>
 
         {contacts.length === 0 ? (
