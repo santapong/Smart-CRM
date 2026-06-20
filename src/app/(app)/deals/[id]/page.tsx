@@ -5,13 +5,15 @@ import { getDefinitions, toFieldViews } from "@/lib/custom-fields";
 import { PageHeader } from "@/components/page-header";
 import { SendEmailDialog } from "@/components/email/send-email-dialog";
 import { EmailList } from "@/components/email/email-list";
+import { Comments } from "@/components/comments";
+import { loadCommentsData } from "@/lib/comments-data";
 import { DealForm } from "../deal-form";
 import { DealStatusActions } from "./status-actions";
 
 export default async function DealDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { orgId } = await requireOrg();
-  const [deal, stages, contacts, companies, defs, emails] = await Promise.all([
+  const { orgId, userId, role } = await requireOrg();
+  const [deal, stages, contacts, companies, defs, emails, commentsData] = await Promise.all([
     db.deal.findFirst({
       where: { id, orgId },
       include: { activities: { orderBy: { createdAt: "desc" }, take: 20 }, contact: true, company: true, stage: true },
@@ -21,6 +23,7 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
     db.company.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     getDefinitions(orgId, "deal"),
     db.emailMessage.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "desc" }, take: 10 }),
+    loadCommentsData(orgId, userId, role, "deal", id),
   ]);
   if (!deal) notFound();
 
@@ -50,6 +53,15 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
               customFields: deal.customFields as Record<string, unknown> | null,
             }}
           />
+          <div className="mt-6 border-t pt-6">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comments</h3>
+            <Comments
+              entityType="deal"
+              entityId={deal.id}
+              members={commentsData.members}
+              initialComments={commentsData.comments}
+            />
+          </div>
         </section>
         <aside className="space-y-4">
           <div className="rounded-lg border bg-card p-4">

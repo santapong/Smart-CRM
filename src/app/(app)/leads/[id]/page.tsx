@@ -3,14 +3,16 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { PageHeader } from "@/components/page-header";
+import { Comments } from "@/components/comments";
+import { loadCommentsData } from "@/lib/comments-data";
 import { LeadForm } from "../lead-form";
 import { LabelPicker } from "./label-picker";
 import { ConvertButton } from "./convert-button";
 
 export default async function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { orgId } = await requireOrg();
-  const [lead, contacts, companies, allLabels] = await Promise.all([
+  const { orgId, userId, role } = await requireOrg();
+  const [lead, contacts, companies, allLabels, commentsData] = await Promise.all([
     db.lead.findFirst({
       where: { id, orgId },
       include: { labels: { include: { label: true } } },
@@ -22,6 +24,7 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
     }),
     db.company.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.leadLabel.findMany({ where: { orgId }, orderBy: { name: "asc" } }),
+    loadCommentsData(orgId, userId, role, "lead", id),
   ]);
   if (!lead) notFound();
 
@@ -48,6 +51,15 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
               notes: lead.notes,
             }}
           />
+          <div className="mt-6 border-t pt-6">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comments</h3>
+            <Comments
+              entityType="lead"
+              entityId={lead.id}
+              members={commentsData.members}
+              initialComments={commentsData.comments}
+            />
+          </div>
         </section>
         <aside className="space-y-4">
           {lead.convertedDealId && (

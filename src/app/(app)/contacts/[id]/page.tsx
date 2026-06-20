@@ -6,14 +6,16 @@ import { getDefinitions, toFieldViews } from "@/lib/custom-fields";
 import { PageHeader } from "@/components/page-header";
 import { SendEmailDialog } from "@/components/email/send-email-dialog";
 import { EmailList } from "@/components/email/email-list";
+import { Comments } from "@/components/comments";
+import { loadCommentsData } from "@/lib/comments-data";
 import { ContactForm } from "../contact-form";
 import { DeleteContactButton } from "./delete-button";
 import { TagPicker } from "./tag-picker";
 
 export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { orgId } = await requireOrg();
-  const [contact, companies, allTags, defs, emails] = await Promise.all([
+  const { orgId, userId, role } = await requireOrg();
+  const [contact, companies, allTags, defs, emails, commentsData] = await Promise.all([
     db.contact.findFirst({
       where: { id, orgId },
       include: {
@@ -27,6 +29,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
     db.tag.findMany({ where: { orgId }, orderBy: { name: "asc" } }),
     getDefinitions(orgId, "contact"),
     db.emailMessage.findMany({ where: { orgId, contactId: id }, orderBy: { createdAt: "desc" }, take: 10 }),
+    loadCommentsData(orgId, userId, role, "contact", id),
   ]);
   if (!contact) notFound();
 
@@ -53,6 +56,15 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
                 notes: contact.notes,
                 customFields: contact.customFields as Record<string, unknown> | null,
               }}
+            />
+          </div>
+          <div className="mt-6 rounded-lg border bg-card p-6">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Comments</h2>
+            <Comments
+              entityType="contact"
+              entityId={contact.id}
+              members={commentsData.members}
+              initialComments={commentsData.comments}
             />
           </div>
         </section>

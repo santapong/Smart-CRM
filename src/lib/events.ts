@@ -16,6 +16,7 @@ export const EVENTS = {
   LEAD_CREATED: "lead.created",
   LEAD_CONVERTED: "lead.converted",
   FORM_SUBMITTED: "form.submitted",
+  COMMENT_CREATED: "comment.created",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

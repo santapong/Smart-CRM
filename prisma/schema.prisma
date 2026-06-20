@@ -96,6 +96,8 @@ model Organization {
   formSubmissions FormSubmission[]
   workflows       Workflow[]
   workflowRuns    WorkflowRun[]
+  notifications   Notification[]
+  comments        Comment[]
 }
 
 model Membership {
@@ -637,4 +639,59 @@ model StepRun {
   run WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@index([runId])
+}
+
+// ---------- Notifications & comments (M10) ----------
+
+// An in-app notification for a single recipient. recipientId/actorId are plain
+// User ids (no relation — keeps churn down). entityType/entityId optionally
+// deep-link to the record that triggered it.
+model Notification {
+  id         String    @id @default(cuid())
+  orgId      String
+  recipientId String
+  type       String // "mention" | "system" | ...
+  title      String
+  body       String?
+  entityType String?
+  entityId   String?
+  actorId    String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  org        Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([orgId, recipientId, readAt])
+}
+
+// A per-channel delivery attempt for a Notification (e.g. an email send).
+model NotificationDelivery {
+  id             String    @id @default(cuid())
+  notificationId String
+  channel        String // "email" | "inapp" | ...
+  status         String    @default("pending") // pending | sent | skipped | failed
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+}
+
+// A user comment on a CRM record (contact | company | deal | lead). Supports
+// @mentions which fan out to Notifications. authorId is a plain User id.
+model Comment {
+  id         String   @id @default(cuid())
+  orgId      String
+  authorId   String
+  entityType String // "contact" | "company" | "deal" | "lead"
+  entityId   String
+  body       String   @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, entityType, entityId])
 }

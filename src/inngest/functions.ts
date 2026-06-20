@@ -2,6 +2,7 @@ import { inngest } from "@/lib/inngest";
 import { processOutboxBatch } from "@/lib/events";
 import { db } from "@/lib/db";
 import { buildContext, runWorkflow } from "@/lib/workflows/engine";
+import { sendNotificationDigests } from "@/lib/notification-digest";
 
 /**
  * Drain the transactional outbox on a schedule (M2). Runs every minute and
@@ -39,4 +40,16 @@ export const runWorkflowJob = inngest.createFunction(
   },
 );
 
-export const functions = [outboxDrain, runWorkflowJob];
+/**
+ * Daily email digest of unread notifications (M10). For each user with unread
+ * notifications in an org, sends a single summary via sendEmail — fully
+ * env-gated, so it's a no-op (recorded + skipped) without a RESEND_API_KEY.
+ */
+export const notificationDigest = inngest.createFunction(
+  { id: "notification-digest", triggers: [{ cron: "0 13 * * *" }] },
+  async () => {
+    return sendNotificationDigests();
+  },
+);
+
+export const functions = [outboxDrain, runWorkflowJob, notificationDigest];
