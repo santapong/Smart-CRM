@@ -5,6 +5,7 @@ import { requireOrg } from "@/lib/tenant";
 import { PageHeader } from "@/components/page-header";
 import { Comments } from "@/components/comments";
 import { loadCommentsData } from "@/lib/comments-data";
+import { EnrollInSequence } from "@/components/sequences/enroll-in-sequence";
 import { LeadForm } from "../lead-form";
 import { LabelPicker } from "./label-picker";
 import { ConvertButton } from "./convert-button";
@@ -12,7 +13,7 @@ import { ConvertButton } from "./convert-button";
 export default async function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId, userId, role } = await requireOrg();
-  const [lead, contacts, companies, allLabels, commentsData] = await Promise.all([
+  const [lead, contacts, companies, allLabels, commentsData, sequences] = await Promise.all([
     db.lead.findFirst({
       where: { id, orgId },
       include: { labels: { include: { label: true } } },
@@ -25,6 +26,7 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
     db.company.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.leadLabel.findMany({ where: { orgId }, orderBy: { name: "asc" } }),
     loadCommentsData(orgId, userId, role, "lead", id),
+    db.sequence.findMany({ where: { orgId, enabled: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   if (!lead) notFound();
 
@@ -81,6 +83,15 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
               leadId={lead.id}
               allLabels={allLabels.map((t) => ({ id: t.id, name: t.name, color: t.color }))}
               assignedIds={lead.labels.map((ll) => ll.labelId)}
+            />
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sequences</h3>
+            <EnrollInSequence
+              sequences={sequences}
+              leadId={lead.id}
+              disabled={!lead.contactId}
+              hint={lead.contactId ? undefined : "Link a contact with an email to enroll."}
             />
           </div>
           {lead.notes && (

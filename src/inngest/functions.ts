@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { buildContext, runWorkflow } from "@/lib/workflows/engine";
 import { sendNotificationDigests } from "@/lib/notification-digest";
 import { retryPendingWebhooks } from "@/lib/webhooks";
+import { processDueEnrollments } from "@/lib/sequences/runner";
 
 /**
  * Drain the transactional outbox on a schedule (M2). Runs every minute and
@@ -65,4 +66,18 @@ export const webhookRetry = inngest.createFunction(
   },
 );
 
-export const functions = [outboxDrain, runWorkflowJob, notificationDigest, webhookRetry];
+/**
+ * Advance due sales-sequence enrollments (M13b). Runs every few minutes and
+ * executes each active enrollment's current step (email/task/wait), then
+ * advances it — see src/lib/sequences/runner.ts. Env-tolerant: email sends are
+ * recorded-and-skipped without a RESEND_API_KEY, and a failing step never
+ * breaks the batch.
+ */
+export const sequenceTick = inngest.createFunction(
+  { id: "sequence-tick", triggers: [{ cron: "*/5 * * * *" }] },
+  async () => {
+    return processDueEnrollments();
+  },
+);
+
+export const functions = [outboxDrain, runWorkflowJob, notificationDigest, webhookRetry, sequenceTick];

@@ -8,6 +8,7 @@ import { SendEmailDialog } from "@/components/email/send-email-dialog";
 import { EmailList } from "@/components/email/email-list";
 import { Comments } from "@/components/comments";
 import { loadCommentsData } from "@/lib/comments-data";
+import { EnrollInSequence } from "@/components/sequences/enroll-in-sequence";
 import { ContactForm } from "../contact-form";
 import { DeleteContactButton } from "./delete-button";
 import { TagPicker } from "./tag-picker";
@@ -15,7 +16,7 @@ import { TagPicker } from "./tag-picker";
 export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId, userId, role } = await requireOrg();
-  const [contact, companies, allTags, defs, emails, commentsData] = await Promise.all([
+  const [contact, companies, allTags, defs, emails, commentsData, sequences] = await Promise.all([
     db.contact.findFirst({
       where: { id, orgId },
       include: {
@@ -30,6 +31,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
     getDefinitions(orgId, "contact"),
     db.emailMessage.findMany({ where: { orgId, contactId: id }, orderBy: { createdAt: "desc" }, take: 10 }),
     loadCommentsData(orgId, userId, role, "contact", id),
+    db.sequence.findMany({ where: { orgId, enabled: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   if (!contact) notFound();
 
@@ -75,6 +77,15 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
               <SendEmailDialog contactId={contact.id} disabled={!contact.email} />
             </div>
             <EmailList emails={emails} hint={contact.email ? undefined : "Add an email address to send messages."} />
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sequences</h3>
+            <EnrollInSequence
+              sequences={sequences}
+              contactId={contact.id}
+              disabled={!contact.email}
+              hint={contact.email ? undefined : "Add an email address to enroll."}
+            />
           </div>
           <div className="rounded-lg border bg-card p-4">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tags</h3>

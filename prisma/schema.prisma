@@ -106,6 +106,8 @@ model Organization {
   products        Product[]
   dealProducts    DealProduct[]
   scoringRules    ScoringRule[]
+  sequences       Sequence[]
+  sequenceEnrollments SequenceEnrollment[]
 }
 
 model Membership {
@@ -904,4 +906,65 @@ model ScoringRule {
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId, entity])
+}
+
+// ---------- Sales sequences / cadences (M13b) ----------
+
+// A reusable, ordered cadence of steps (emails, tasks, waits). Records are
+// enrolled via SequenceEnrollment; an Inngest cron advances due enrollments
+// step-by-step (see src/lib/sequences/runner.ts).
+model Sequence {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org         Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  steps       SequenceStep[]
+  enrollments SequenceEnrollment[]
+
+  @@index([orgId])
+}
+
+// One step in a Sequence. `type` ∈ email | task | wait. `email` steps send
+// `subject`/`body`; `task` steps create an Activity titled `subject`; `wait`
+// steps gate the NEXT step by `waitDays`.
+model SequenceStep {
+  id         String   @id @default(cuid())
+  sequenceId String
+  order      Int
+  type       String // "email" | "task" | "wait"
+  subject    String?
+  body       String?  @db.Text
+  waitDays   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@index([sequenceId, order])
+}
+
+// A single record's progress through a Sequence. `currentStep` is the index of
+// the next step to run; `nextRunAt` is when the runner should next process it.
+// `status` ∈ active | completed | stopped | failed.
+model SequenceEnrollment {
+  id          String    @id @default(cuid())
+  orgId       String
+  sequenceId  String
+  contactId   String?
+  leadId      String?
+  status      String    @default("active")
+  currentStep Int       @default(0)
+  nextRunAt   DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sequence Sequence     @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status, nextRunAt])
+  @@index([sequenceId])
 }
