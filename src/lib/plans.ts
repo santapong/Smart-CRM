@@ -1,0 +1,116 @@
+/**
+ * Code-defined plans (M4). Numeric limits use -1 to mean "unlimited".
+ * Values are derived from docs/research/briefs/marketing/09-pricing-monetization.md
+ * (Free 3-user wedge; Starter unlocks multi-pipeline + custom fields; Pro
+ * unlimited custom fields; Business unlimited + SSO).
+ *
+ * Per-org overrides live in the Entitlement table and win over these defaults
+ * (see src/lib/entitlements.ts).
+ */
+
+export const PLAN_KEYS = ["free", "starter", "pro", "business"] as const;
+export type PlanKey = (typeof PLAN_KEYS)[number];
+
+/** -1 means unlimited. */
+export type PlanLimits = {
+  pipelines: number;
+  customFields: number;
+  savedViews: number;
+  seats: number;
+};
+
+export type LimitKey = keyof PlanLimits;
+
+export type Plan = {
+  key: PlanKey;
+  name: string;
+  limits: PlanLimits;
+  features: string[];
+};
+
+export const UNLIMITED = -1;
+
+export const PLANS: Record<PlanKey, Plan> = {
+  free: {
+    key: "free",
+    name: "Free",
+    limits: { pipelines: 1, customFields: 0, savedViews: 2, seats: 3 },
+    features: ["contacts", "companies", "activities", "dashboard", "search"],
+  },
+  starter: {
+    key: "starter",
+    name: "Starter",
+    limits: { pipelines: 3, customFields: 25, savedViews: 10, seats: 10 },
+    features: [
+      "contacts",
+      "companies",
+      "activities",
+      "dashboard",
+      "search",
+      "multiple_pipelines",
+      "custom_fields",
+      "saved_views",
+      "email",
+      "csv_import",
+    ],
+  },
+  pro: {
+    key: "pro",
+    name: "Professional",
+    limits: { pipelines: 15, customFields: UNLIMITED, savedViews: UNLIMITED, seats: 50 },
+    features: [
+      "contacts",
+      "companies",
+      "activities",
+      "dashboard",
+      "search",
+      "multiple_pipelines",
+      "custom_fields",
+      "saved_views",
+      "email",
+      "csv_import",
+      "automation",
+      "report_builder",
+      "api",
+      "webhooks",
+    ],
+  },
+  business: {
+    key: "business",
+    name: "Business",
+    limits: {
+      pipelines: UNLIMITED,
+      customFields: UNLIMITED,
+      savedViews: UNLIMITED,
+      seats: UNLIMITED,
+    },
+    features: [
+      "contacts",
+      "companies",
+      "activities",
+      "dashboard",
+      "search",
+      "multiple_pipelines",
+      "custom_fields",
+      "saved_views",
+      "email",
+      "csv_import",
+      "automation",
+      "report_builder",
+      "api",
+      "webhooks",
+      "teams",
+      "sso",
+      "recurring_revenue",
+    ],
+  },
+};
+
+export function isPlanKey(value: string): value is PlanKey {
+  return (PLAN_KEYS as readonly string[]).includes(value);
+}
+
+/** Resolve a plan by key, falling back to free for unknown values. */
+export function planByKey(key: string): Plan {
+  return isPlanKey(key) ? PLANS[key] : PLANS.free;
+}

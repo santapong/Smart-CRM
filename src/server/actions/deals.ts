@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { recordStageEvent } from "@/lib/stage-history";
+import { emit, EVENTS } from "@/lib/events";
 
 const dealSchema = z.object({
   title: z.string().min(1).max(160),
@@ -27,29 +28,40 @@ export async function createDeal(input: unknown): Promise<ActionResult<{ id: str
   const stage = await db.pipelineStage.findFirst({ where: { id: parsed.data.stageId, orgId } });
   if (!stage) return fail("Stage not found");
   const d = parsed.data;
-  const created = await db.deal.create({
-    data: {
+  const created = await db.$transaction(async (tx) => {
+    const deal = await tx.deal.create({
+      data: {
+        orgId,
+        title: d.title,
+        value: d.value,
+        currency: d.currency,
+        status: d.status,
+        stageId: d.stageId,
+        pipelineId: stage.pipelineId,
+        contactId: c(d.contactId),
+        companyId: c(d.companyId),
+        ownerId: userId,
+        closeDate: d.closeDate ? new Date(d.closeDate) : null,
+        notes: c(d.notes),
+      },
+    });
+    await recordStageEvent(
+      {
+        orgId,
+        dealId: deal.id,
+        toStageId: deal.stageId,
+        toStatus: deal.status,
+        value: deal.value,
+        changedById: userId,
+      },
+      tx,
+    );
+    await emit(tx, {
       orgId,
-      title: d.title,
-      value: d.value,
-      currency: d.currency,
-      status: d.status,
-      stageId: d.stageId,
-      pipelineId: stage.pipelineId,
-      contactId: c(d.contactId),
-      companyId: c(d.companyId),
-      ownerId: userId,
-      closeDate: d.closeDate ? new Date(d.closeDate) : null,
-      notes: c(d.notes),
-    },
-  });
-  await recordStageEvent({
-    orgId,
-    dealId: created.id,
-    toStageId: created.stageId,
-    toStatus: created.status,
-    value: created.value,
-    changedById: userId,
+      name: EVENTS.DEAL_CREATED,
+      payload: { dealId: deal.id, stageId: deal.stageId, status: deal.status },
+    });
+    return deal;
   });
   revalidatePath("/deals");
   return ok({ id: created.id });
@@ -64,33 +76,54 @@ export async function updateDeal(id: string, input: unknown): Promise<ActionResu
   const stage = await db.pipelineStage.findFirst({ where: { id: parsed.data.stageId, orgId } });
   if (!stage) return fail("Stage not found");
   const d = parsed.data;
-  await db.deal.update({
-    where: { id },
-    data: {
-      title: d.title,
-      value: d.value,
-      currency: d.currency,
-      status: d.status,
-      stageId: d.stageId,
-      pipelineId: stage.pipelineId,
-      contactId: c(d.contactId),
-      companyId: c(d.companyId),
-      closeDate: d.closeDate ? new Date(d.closeDate) : null,
-      notes: c(d.notes),
-    },
-  });
-  if (existing.stageId !== d.stageId || existing.status !== d.status) {
-    await recordStageEvent({
-      orgId,
-      dealId: id,
-      fromStageId: existing.stageId,
-      toStageId: d.stageId,
-      fromStatus: existing.status,
-      toStatus: d.status,
-      value: d.value,
-      changedById: userId,
+  const stageChanged = existing.stageId !== d.stageId;
+  const statusChanged = existing.status !== d.status;
+  await db.$transaction(async (tx) => {
+    await tx.deal.update({
+      where: { id },
+      data: {
+        title: d.title,
+        value: d.value,
+        currency: d.currency,
+        status: d.status,
+        stageId: d.stageId,
+        pipelineId: stage.pipelineId,
+        contactId: c(d.contactId),
+        companyId: c(d.companyId),
+        closeDate: d.closeDate ? new Date(d.closeDate) : null,
+        notes: c(d.notes),
+      },
     });
-  }
+    if (stageChanged || statusChanged) {
+      await recordStageEvent(
+        {
+          orgId,
+          dealId: id,
+          fromStageId: existing.stageId,
+          toStageId: d.stageId,
+          fromStatus: existing.status,
+          toStatus: d.status,
+          value: d.value,
+          changedById: userId,
+        },
+        tx,
+      );
+    }
+    if (stageChanged) {
+      await emit(tx, {
+        orgId,
+        name: EVENTS.DEAL_STAGE_CHANGED,
+        payload: { dealId: id, fromStageId: existing.stageId, toStageId: d.stageId },
+      });
+    }
+    if (statusChanged) {
+      await emit(tx, {
+        orgId,
+        name: EVENTS.DEAL_STATUS_CHANGED,
+        payload: { dealId: id, fromStatus: existing.status, toStatus: d.status },
+      });
+    }
+  });
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);
   return ok({ id });
@@ -105,16 +138,26 @@ export async function moveDealToStage(id: string, stageId: string): Promise<Acti
   if (!deal) return fail("Deal not found");
   if (!stage) return fail("Stage not found");
   if (deal.stageId !== stageId) {
-    await db.deal.update({ where: { id }, data: { stageId, pipelineId: stage.pipelineId } });
-    await recordStageEvent({
-      orgId,
-      dealId: id,
-      fromStageId: deal.stageId,
-      toStageId: stageId,
-      fromStatus: deal.status,
-      toStatus: deal.status,
-      value: deal.value,
-      changedById: userId,
+    await db.$transaction(async (tx) => {
+      await tx.deal.update({ where: { id }, data: { stageId, pipelineId: stage.pipelineId } });
+      await recordStageEvent(
+        {
+          orgId,
+          dealId: id,
+          fromStageId: deal.stageId,
+          toStageId: stageId,
+          fromStatus: deal.status,
+          toStatus: deal.status,
+          value: deal.value,
+          changedById: userId,
+        },
+        tx,
+      );
+      await emit(tx, {
+        orgId,
+        name: EVENTS.DEAL_STAGE_CHANGED,
+        payload: { dealId: id, fromStageId: deal.stageId, toStageId: stageId },
+      });
     });
   }
   revalidatePath("/deals");
@@ -126,16 +169,26 @@ export async function setDealStatus(id: string, status: "OPEN" | "WON" | "LOST")
   const deal = await db.deal.findFirst({ where: { id, orgId } });
   if (!deal) return fail("Not found");
   if (deal.status !== status) {
-    await db.deal.update({ where: { id }, data: { status } });
-    await recordStageEvent({
-      orgId,
-      dealId: id,
-      fromStageId: deal.stageId,
-      toStageId: deal.stageId,
-      fromStatus: deal.status,
-      toStatus: status,
-      value: deal.value,
-      changedById: userId,
+    await db.$transaction(async (tx) => {
+      await tx.deal.update({ where: { id }, data: { status } });
+      await recordStageEvent(
+        {
+          orgId,
+          dealId: id,
+          fromStageId: deal.stageId,
+          toStageId: deal.stageId,
+          fromStatus: deal.status,
+          toStatus: status,
+          value: deal.value,
+          changedById: userId,
+        },
+        tx,
+      );
+      await emit(tx, {
+        orgId,
+        name: EVENTS.DEAL_STATUS_CHANGED,
+        payload: { dealId: id, fromStatus: deal.status, toStatus: status },
+      });
     });
   }
   revalidatePath("/deals");

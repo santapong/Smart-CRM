@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { applyCustomFields } from "@/lib/custom-fields";
+import { emit, EVENTS } from "@/lib/events";
 
 const contactSchema = z.object({
   firstName: z.string().min(1).max(80),
@@ -29,18 +30,26 @@ export async function createContact(input: unknown): Promise<ActionResult<{ id: 
   const d = parsed.data;
   const cf = await applyCustomFields(orgId, "contact", d.customFields ?? {});
   if (!cf.ok) return fail("Invalid custom fields", cf.errors);
-  const created = await db.contact.create({
-    data: {
+  const created = await db.$transaction(async (tx) => {
+    const contact = await tx.contact.create({
+      data: {
+        orgId,
+        firstName: d.firstName,
+        lastName: d.lastName,
+        email: clean(d.email),
+        phone: clean(d.phone),
+        title: clean(d.title),
+        companyId: clean(d.companyId),
+        notes: clean(d.notes),
+        customFields: cf.value as Prisma.InputJsonValue,
+      },
+    });
+    await emit(tx, {
       orgId,
-      firstName: d.firstName,
-      lastName: d.lastName,
-      email: clean(d.email),
-      phone: clean(d.phone),
-      title: clean(d.title),
-      companyId: clean(d.companyId),
-      notes: clean(d.notes),
-      customFields: cf.value as Prisma.InputJsonValue,
-    },
+      name: EVENTS.CONTACT_CREATED,
+      payload: { contactId: contact.id },
+    });
+    return contact;
   });
   revalidatePath("/contacts");
   return ok({ id: created.id });

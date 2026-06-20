@@ -10,6 +10,12 @@ export const env = createEnv({
     AUTH_TRUST_HOST: z.preprocess((v) => v === "true" || v === true, z.boolean().optional()),
     EMAIL_FROM: z.string().email().optional(),
     RESEND_API_KEY: z.string().optional(),
+    // Async backbone (M2) — only needed to talk to Inngest Cloud.
+    INNGEST_EVENT_KEY: z.string().optional(),
+    INNGEST_SIGNING_KEY: z.string().optional(),
+    // Billing (M4) — env-gated; app runs without these.
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   },
   client: {
@@ -23,6 +29,10 @@ export const env = createEnv({
     AUTH_TRUST_HOST: process.env.AUTH_TRUST_HOST,
     EMAIL_FROM: process.env.EMAIL_FROM,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
+    INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY,
+    INNGEST_SIGNING_KEY: process.env.INNGEST_SIGNING_KEY,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
   },

@@ -1,21 +1,29 @@
 import { db } from "@/lib/db";
 import type { DealStatus, Prisma } from "@prisma/client";
 
+type DbOrTx = Prisma.TransactionClient | typeof db;
+
 /**
  * Append a deal stage/status transition to the DealStageEvent log.
  * Foundation for funnel / velocity / win-rate analytics (M5).
+ *
+ * Pass a transaction client as the second arg to record the event atomically
+ * with the originating deal mutation (M2 outbox integration).
  */
-export async function recordStageEvent(input: {
-  orgId: string;
-  dealId: string;
-  fromStageId?: string | null;
-  toStageId?: string | null;
-  fromStatus?: DealStatus | null;
-  toStatus?: DealStatus | null;
-  value?: Prisma.Decimal | number | string;
-  changedById?: string | null;
-}): Promise<void> {
-  await db.dealStageEvent.create({
+export async function recordStageEvent(
+  input: {
+    orgId: string;
+    dealId: string;
+    fromStageId?: string | null;
+    toStageId?: string | null;
+    fromStatus?: DealStatus | null;
+    toStatus?: DealStatus | null;
+    value?: Prisma.Decimal | number | string;
+    changedById?: string | null;
+  },
+  client: DbOrTx = db,
+): Promise<void> {
+  await client.dealStageEvent.create({
     data: {
       orgId: input.orgId,
       dealId: input.dealId,

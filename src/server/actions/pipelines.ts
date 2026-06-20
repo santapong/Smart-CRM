@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { requireRole } from "@/lib/rbac";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
+import { withinLimit } from "@/lib/entitlements";
 
 const pipelineSchema = z.object({
   name: z.string().min(1).max(80),
@@ -28,6 +29,11 @@ export async function createPipeline(input: unknown): Promise<ActionResult<{ id:
   requireRole(role, "ADMIN");
   const p = parsed.data;
   const count = await db.pipeline.count({ where: { orgId } });
+  // M4: enforce plan limits. TODO: custom-fields / saved-views / seats follow
+  // the same withinLimit(...) pattern in their respective create actions.
+  if (!(await withinLimit(orgId, "pipelines", count))) {
+    return fail("Plan limit reached: upgrade your plan to add more pipelines");
+  }
   try {
     const created = await db.pipeline.create({
       data: { orgId, name: p.name, order: p.order ?? count, isDefault: p.isDefault ?? false },

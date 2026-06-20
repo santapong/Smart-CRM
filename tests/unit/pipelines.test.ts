@@ -33,13 +33,18 @@ beforeAll(async () => {
   });
   orgId = o.id; userId = u.id;
   active = { userId, orgId, role: "OWNER" };
+  // M4: this suite creates many pipelines; lift the plan cap for this org.
+  await db.entitlement.create({ data: { orgId, key: "pipelines", intValue: -1 } });
 });
 
 afterAll(async () => {
+  await db.outboxEvent.deleteMany({ where: { orgId } });
+  await db.entitlement.deleteMany({ where: { orgId } });
   await db.dealStageEvent.deleteMany({ where: { orgId } });
   await db.deal.deleteMany({ where: { orgId } });
   await db.pipelineStage.deleteMany({ where: { orgId } });
   await db.pipeline.deleteMany({ where: { orgId } });
+  await db.subscription.deleteMany({ where: { orgId } });
   await db.membership.deleteMany({ where: { orgId } });
   await db.organization.deleteMany({ where: { id: orgId } });
   await db.user.deleteMany({ where: { id: userId } });
