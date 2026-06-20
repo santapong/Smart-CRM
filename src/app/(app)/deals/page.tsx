@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { KanbanBoard } from "./kanban";
 import { PipelineSelector } from "./pipeline-selector";
+import { LiveRefresh } from "@/components/realtime/live-refresh";
+import { PresenceAvatars } from "@/components/realtime/presence-avatars";
 
 export const dynamic = "force-dynamic";
 
@@ -62,11 +64,15 @@ export default async function DealsPage({
           </Link>
         </Button>
       </PageHeader>
+      <LiveRefresh orgId={orgId} />
       <div className="space-y-4 p-6">
-        <PipelineSelector
-          pipelines={pipelines.map((p) => ({ id: p.id, name: p.name }))}
-          selectedId={selected.id}
-        />
+        <div className="flex items-center justify-between gap-4">
+          <PipelineSelector
+            pipelines={pipelines.map((p) => ({ id: p.id, name: p.name }))}
+            selectedId={selected.id}
+          />
+          <PresenceAvatars orgId={orgId} />
+        </div>
         {stages.length === 0 ? (
           <EmptyState
             title="No stages in this pipeline"

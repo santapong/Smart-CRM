@@ -39,12 +39,24 @@ export const env = createEnv({
     // routes return 501 and the UI shows a "set JACKSON_* to enable" hint.
     JACKSON_URL: z.string().url().optional(),
     JACKSON_API_KEY: z.string().optional(),
+    // Realtime (M17) — Pusher Channels. All env-gated: with these unset the
+    // realtime backbone is inert (publish is a no-op, the auth route 501s) and
+    // the app builds/runs without them. All four are needed to go live.
+    PUSHER_APP_ID: z.string().optional(),
+    PUSHER_KEY: z.string().optional(),
+    PUSHER_SECRET: z.string().optional(),
+    PUSHER_CLUSTER: z.string().optional(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   },
   client: {
     NEXT_PUBLIC_APP_NAME: z.string().default("Smart CRM"),
     // Error monitoring (M1) — env-gated; client SDK stays off unless set.
     NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
+    // Realtime (M17) — public Pusher key + cluster for the browser SDK. With
+    // NEXT_PUBLIC_PUSHER_KEY unset the client hooks no-op and the pusher-js
+    // chunk is never fetched. Mirror PUSHER_KEY / PUSHER_CLUSTER here.
+    NEXT_PUBLIC_PUSHER_KEY: z.string().optional(),
+    NEXT_PUBLIC_PUSHER_CLUSTER: z.string().optional(),
   },
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
@@ -69,9 +81,15 @@ export const env = createEnv({
     NANGO_HOST: process.env.NANGO_HOST,
     JACKSON_URL: process.env.JACKSON_URL,
     JACKSON_API_KEY: process.env.JACKSON_API_KEY,
+    PUSHER_APP_ID: process.env.PUSHER_APP_ID,
+    PUSHER_KEY: process.env.PUSHER_KEY,
+    PUSHER_SECRET: process.env.PUSHER_SECRET,
+    PUSHER_CLUSTER: process.env.PUSHER_CLUSTER,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY,
+    NEXT_PUBLIC_PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,

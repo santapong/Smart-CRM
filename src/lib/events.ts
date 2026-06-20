@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import { dispatchSlack } from "@/lib/integrations/slack";
+import { publish, orgChannel } from "@/lib/realtime";
 
 /**
  * Domain event names (M2). Written to the transactional outbox in the same
@@ -80,6 +81,10 @@ export async function processOutboxBatch(
       // env-tolerant — a missing/failed Slack webhook is swallowed, never
       // thrown, so it can't disrupt the drain.
       await dispatchSlack(event);
+      // Fan-out (M17): broadcast to the org's realtime channel so live viewers
+      // (e.g. the Kanban board, presence) update. Best-effort and env-gated —
+      // publish() is a no-op without PUSHER_* and never throws on failure.
+      if (event.orgId) await publish(orgChannel(event.orgId), event.name, event.payload);
       // updateMany guarded by status: a concurrent drainer (or a deleted row)
       // is a no-op (count 0) rather than a thrown "record not found".
       const upd = await db.outboxEvent.updateMany({
