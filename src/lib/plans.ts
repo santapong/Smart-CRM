@@ -17,6 +17,8 @@ export type PlanLimits = {
   customFields: number;
   savedViews: number;
   seats: number;
+  leads: number;
+  forms: number;
 };
 
 export type LimitKey = keyof PlanLimits;
@@ -34,19 +36,21 @@ export const PLANS: Record<PlanKey, Plan> = {
   free: {
     key: "free",
     name: "Free",
-    limits: { pipelines: 1, customFields: 0, savedViews: 2, seats: 3 },
-    features: ["contacts", "companies", "activities", "dashboard", "search"],
+    limits: { pipelines: 1, customFields: 0, savedViews: 2, seats: 3, leads: 100, forms: 1 },
+    features: ["contacts", "companies", "activities", "dashboard", "search", "leads", "forms"],
   },
   starter: {
     key: "starter",
     name: "Starter",
-    limits: { pipelines: 3, customFields: 25, savedViews: 10, seats: 10 },
+    limits: { pipelines: 3, customFields: 25, savedViews: 10, seats: 10, leads: 5000, forms: 10 },
     features: [
       "contacts",
       "companies",
       "activities",
       "dashboard",
       "search",
+      "leads",
+      "forms",
       "multiple_pipelines",
       "custom_fields",
       "saved_views",
@@ -57,13 +61,22 @@ export const PLANS: Record<PlanKey, Plan> = {
   pro: {
     key: "pro",
     name: "Professional",
-    limits: { pipelines: 15, customFields: UNLIMITED, savedViews: UNLIMITED, seats: 50 },
+    limits: {
+      pipelines: 15,
+      customFields: UNLIMITED,
+      savedViews: UNLIMITED,
+      seats: 50,
+      leads: UNLIMITED,
+      forms: UNLIMITED,
+    },
     features: [
       "contacts",
       "companies",
       "activities",
       "dashboard",
       "search",
+      "leads",
+      "forms",
       "multiple_pipelines",
       "custom_fields",
       "saved_views",
@@ -83,6 +96,8 @@ export const PLANS: Record<PlanKey, Plan> = {
       customFields: UNLIMITED,
       savedViews: UNLIMITED,
       seats: UNLIMITED,
+      leads: UNLIMITED,
+      forms: UNLIMITED,
     },
     features: [
       "contacts",
@@ -90,6 +105,8 @@ export const PLANS: Record<PlanKey, Plan> = {
       "activities",
       "dashboard",
       "search",
+      "leads",
+      "forms",
       "multiple_pipelines",
       "custom_fields",
       "saved_views",

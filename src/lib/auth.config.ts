@@ -17,7 +17,8 @@ export const authConfig = {
         nextUrl.pathname.startsWith("/forgot") ||
         nextUrl.pathname.startsWith("/reset") ||
         nextUrl.pathname.startsWith("/api/auth") ||
-        nextUrl.pathname.startsWith("/api/email");
+        nextUrl.pathname.startsWith("/api/email") ||
+        nextUrl.pathname.startsWith("/api/forms");
       if (isPublic) return true;
       return isLoggedIn;
     },

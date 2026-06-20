@@ -12,6 +12,9 @@ export const EVENTS = {
   DEAL_STATUS_CHANGED: "deal.status_changed",
   CONTACT_CREATED: "contact.created",
   EMAIL_SENT: "email.sent",
+  LEAD_CREATED: "lead.created",
+  LEAD_CONVERTED: "lead.converted",
+  FORM_SUBMITTED: "form.submitted",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
