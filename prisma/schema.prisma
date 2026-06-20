@@ -101,6 +101,8 @@ model Organization {
   reports         Report[]
   dashboards      Dashboard[]
   goals           Goal[]
+  apiKeys         ApiKey[]
+  webhookEndpoints WebhookEndpoint[]
 }
 
 model Membership {
@@ -753,4 +755,79 @@ model Goal {
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
+}
+
+// ---------- Public REST API & outbound webhooks (M12) ----------
+
+// A hashed API key for the public REST API. The plaintext key is
+// `sk_<lookupPrefix>_<secret>` and is shown to the user exactly once on
+// creation; we persist only `keyHash` (sha256 of the secret) plus a unique,
+// non-secret `lookupPrefix` used to find the row in constant time. `scopes`
+// gate which resources/operations the key may access (e.g. "contacts:read").
+model ApiKey {
+  id           String    @id @default(cuid())
+  orgId        String
+  name         String
+  lookupPrefix String    @unique
+  keyHash      String
+  scopes       String[]
+  lastUsedAt   DateTime?
+  createdById  String?
+  createdAt    DateTime  @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// A registered outbound webhook target for an org. `enabledEvents` is a list of
+// domain event names (or "*" for all). `secret` signs deliveries via HMAC-SHA256
+// in the `X-SmartCRM-Signature` header so receivers can verify authenticity.
+model WebhookEndpoint {
+  id            String   @id @default(cuid())
+  orgId         String
+  url           String
+  secret        String
+  enabledEvents String[]
+  status        String   @default("active") // active | disabled
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org        Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([orgId])
+}
+
+// One delivery attempt of a domain event to a WebhookEndpoint. Created when an
+// event is drained from the outbox; retried with backoff by an Inngest job until
+// it succeeds or the attempt cap is reached.
+model WebhookDelivery {
+  id             String    @id @default(cuid())
+  endpointId     String
+  eventName      String
+  payload        Json
+  status         String    @default("pending") // pending | success | failed
+  attempts       Int       @default(0)
+  responseStatus Int?
+  nextAttemptAt  DateTime?
+  createdAt      DateTime  @default(now())
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, status])
+}
+
+// A short-lived idempotency record for public-API POSTs. Keyed per org + key so
+// a retried request with the same `Idempotency-Key` returns the original result
+// instead of creating a duplicate resource.
+model IdempotencyKey {
+  id        String   @id @default(cuid())
+  orgId     String
+  key       String
+  result    Json
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, key])
+  @@index([createdAt])
 }

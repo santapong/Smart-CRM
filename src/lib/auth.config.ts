@@ -18,7 +18,10 @@ export const authConfig = {
         nextUrl.pathname.startsWith("/reset") ||
         nextUrl.pathname.startsWith("/api/auth") ||
         nextUrl.pathname.startsWith("/api/email") ||
-        nextUrl.pathname.startsWith("/api/forms");
+        nextUrl.pathname.startsWith("/api/forms") ||
+        // Public REST API (M12): authenticated via API key (Bearer), not a
+        // session — see src/lib/api/auth.ts.
+        nextUrl.pathname.startsWith("/api/v1");
       if (isPublic) return true;
       return isLoggedIn;
     },

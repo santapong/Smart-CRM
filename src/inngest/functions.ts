@@ -3,6 +3,7 @@ import { processOutboxBatch } from "@/lib/events";
 import { db } from "@/lib/db";
 import { buildContext, runWorkflow } from "@/lib/workflows/engine";
 import { sendNotificationDigests } from "@/lib/notification-digest";
+import { retryPendingWebhooks } from "@/lib/webhooks";
 
 /**
  * Drain the transactional outbox on a schedule (M2). Runs every minute and
@@ -52,4 +53,16 @@ export const notificationDigest = inngest.createFunction(
   },
 );
 
-export const functions = [outboxDrain, runWorkflowJob, notificationDigest];
+/**
+ * Retry failed/pending outbound webhook deliveries (M12). Runs every minute and
+ * re-attempts deliveries whose `nextAttemptAt` is due, with exponential backoff
+ * up to the attempt cap (see src/lib/webhooks.ts). Env-tolerant — never throws.
+ */
+export const webhookRetry = inngest.createFunction(
+  { id: "webhook-retry", triggers: [{ cron: "* * * * *" }] },
+  async () => {
+    return retryPendingWebhooks();
+  },
+);
+
+export const functions = [outboxDrain, runWorkflowJob, notificationDigest, webhookRetry];

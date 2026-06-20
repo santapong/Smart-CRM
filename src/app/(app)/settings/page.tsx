@@ -3,10 +3,13 @@ import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { hasRole } from "@/lib/rbac";
 import { selectOptions, type CustomFieldEntity, type CustomFieldType } from "@/lib/custom-fields";
+import { EVENTS } from "@/lib/events";
 import { PageHeader } from "@/components/page-header";
 import { OrgNameForm } from "./org-name-form";
 import { MembersSection } from "./members-section";
 import { CustomFieldsSection } from "./custom-fields-section";
+import { ApiKeysSection } from "./api-keys-section";
+import { WebhooksSection } from "./webhooks-section";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +17,7 @@ export default async function SettingsPage() {
   const { orgId, role } = await requireOrg();
   if (!hasRole(role, "ADMIN")) redirect("/dashboard");
 
-  const [org, members, fieldDefs] = await Promise.all([
+  const [org, members, fieldDefs, apiKeys, webhookEndpoints] = await Promise.all([
     db.organization.findUnique({ where: { id: orgId } }),
     db.membership.findMany({
       where: { orgId },
@@ -24,6 +27,16 @@ export default async function SettingsPage() {
     db.customFieldDefinition.findMany({
       where: { orgId },
       orderBy: [{ entity: "asc" }, { order: "asc" }, { createdAt: "asc" }],
+    }),
+    db.apiKey.findMany({
+      where: { orgId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, lookupPrefix: true, scopes: true, lastUsedAt: true, createdAt: true },
+    }),
+    db.webhookEndpoint.findMany({
+      where: { orgId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, url: true, secret: true, enabledEvents: true, status: true, createdAt: true },
     }),
   ]);
   if (!org) redirect("/login");
@@ -59,6 +72,39 @@ export default async function SettingsPage() {
               type: d.type as CustomFieldType,
               required: d.required,
               options: selectOptions(d),
+            }))}
+          />
+        </section>
+        <section className="rounded-lg border bg-card p-6">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">API keys</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Authenticate the public REST API (<code>/api/v1</code>) with a Bearer key.
+          </p>
+          <ApiKeysSection
+            keys={apiKeys.map((k) => ({
+              id: k.id,
+              name: k.name,
+              lookupPrefix: k.lookupPrefix,
+              scopes: k.scopes,
+              lastUsedAt: k.lastUsedAt ? k.lastUsedAt.toISOString() : null,
+              createdAt: k.createdAt.toISOString(),
+            }))}
+          />
+        </section>
+        <section className="rounded-lg border bg-card p-6">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Webhooks</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            POST signed events to your endpoints. Verify the <code>X-SmartCRM-Signature</code> header.
+          </p>
+          <WebhooksSection
+            availableEvents={Object.values(EVENTS)}
+            endpoints={webhookEndpoints.map((w) => ({
+              id: w.id,
+              url: w.url,
+              secret: w.secret,
+              enabledEvents: w.enabledEvents,
+              status: w.status,
+              createdAt: w.createdAt.toISOString(),
             }))}
           />
         </section>

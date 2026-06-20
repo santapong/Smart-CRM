@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { dispatchEvent } from "@/lib/workflows/engine";
+import { dispatchWebhooks } from "@/lib/webhooks";
 
 /**
  * Domain event names (M2). Written to the transactional outbox in the same
@@ -70,17 +71,23 @@ export async function processOutboxBatch(
       // org + event. dispatchEvent is defensive (per-run errors are captured),
       // so a misbehaving workflow won't fail outbox draining.
       await dispatchEvent(event.orgId, event.name, event.payload);
-      await db.outboxEvent.update({
-        where: { id: event.id },
+      // Fan-out (M12): deliver to the org's registered webhook endpoints.
+      // dispatchWebhooks is env-tolerant — network failures are recorded on the
+      // delivery row, never thrown, so they don't fail the drain.
+      await dispatchWebhooks(event);
+      // updateMany guarded by status: a concurrent drainer (or a deleted row)
+      // is a no-op (count 0) rather than a thrown "record not found".
+      const upd = await db.outboxEvent.updateMany({
+        where: { id: event.id, status: "PENDING" },
         data: { status: "PROCESSED", processedAt: new Date() },
       });
-      processed += 1;
+      if (upd.count > 0) processed += 1;
     } catch {
-      await db.outboxEvent.update({
-        where: { id: event.id },
+      const upd = await db.outboxEvent.updateMany({
+        where: { id: event.id, status: "PENDING" },
         data: { status: "FAILED", attempts: { increment: 1 } },
       });
-      failed += 1;
+      if (upd.count > 0) failed += 1;
     }
   }
 
