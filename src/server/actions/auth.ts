@@ -13,11 +13,11 @@ const signUpSchema = z.object({
 });
 
 const DEFAULT_STAGES = [
-  { name: "Lead", order: 0, color: "#64748b" },
-  { name: "Qualified", order: 1, color: "#0ea5e9" },
-  { name: "Proposal", order: 2, color: "#8b5cf6" },
-  { name: "Negotiation", order: 3, color: "#f59e0b" },
-  { name: "Closing", order: 4, color: "#10b981" },
+  { name: "Lead", order: 0, color: "#64748b", probability: 10 },
+  { name: "Qualified", order: 1, color: "#0ea5e9", probability: 30 },
+  { name: "Proposal", order: 2, color: "#8b5cf6", probability: 50 },
+  { name: "Negotiation", order: 3, color: "#f59e0b", probability: 70 },
+  { name: "Closing", order: 4, color: "#10b981", probability: 90 },
 ];
 
 export async function signUpAction(input: unknown): Promise<ActionResult<{ userId: string; orgId: string }>> {
@@ -47,8 +47,13 @@ export async function signUpAction(input: unknown): Promise<ActionResult<{ userI
         name: orgName,
         slug,
         memberships: { create: { userId: user.id, role: "OWNER" } },
-        stages: { create: DEFAULT_STAGES },
       },
+    });
+    const pipeline = await tx.pipeline.create({
+      data: { orgId: org.id, name: "Sales Pipeline", isDefault: true, order: 0 },
+    });
+    await tx.pipelineStage.createMany({
+      data: DEFAULT_STAGES.map((s) => ({ ...s, orgId: org.id, pipelineId: pipeline.id })),
     });
     return { userId: user.id, orgId: org.id };
   });

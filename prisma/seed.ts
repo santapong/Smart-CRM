@@ -4,17 +4,18 @@ import bcrypt from "bcryptjs";
 const db = new PrismaClient();
 
 const DEFAULT_STAGES = [
-  { name: "Lead", order: 0, color: "#64748b" },
-  { name: "Qualified", order: 1, color: "#0ea5e9" },
-  { name: "Proposal", order: 2, color: "#8b5cf6" },
-  { name: "Negotiation", order: 3, color: "#f59e0b" },
-  { name: "Closing", order: 4, color: "#10b981" },
+  { name: "Lead", order: 0, color: "#64748b", probability: 10, rottenDays: 7 },
+  { name: "Qualified", order: 1, color: "#0ea5e9", probability: 30, rottenDays: 14 },
+  { name: "Proposal", order: 2, color: "#8b5cf6", probability: 50, rottenDays: 21 },
+  { name: "Negotiation", order: 3, color: "#f59e0b", probability: 70, rottenDays: 30 },
+  { name: "Closing", order: 4, color: "#10b981", probability: 90, rottenDays: 45 },
 ];
 
 async function main() {
   console.log("Seeding…");
 
   // Wipe in dependency order (dev only).
+  await db.dealStageEvent.deleteMany();
   await db.activity.deleteMany();
   await db.contactTag.deleteMany();
   await db.deal.deleteMany();
@@ -22,6 +23,7 @@ async function main() {
   await db.company.deleteMany();
   await db.tag.deleteMany();
   await db.pipelineStage.deleteMany();
+  await db.pipeline.deleteMany();
   await db.membership.deleteMany();
   await db.organization.deleteMany();
   await db.user.deleteMany();
@@ -45,7 +47,6 @@ async function main() {
           { userId: member.id, role: Role.MEMBER },
         ],
       },
-      stages: { create: DEFAULT_STAGES },
       tags: {
         create: [
           { name: "VIP", color: "#ef4444" },
@@ -54,8 +55,15 @@ async function main() {
         ],
       },
     },
-    include: { stages: true, tags: true },
+    include: { tags: true },
   });
+
+  const pipeline = await db.pipeline.create({
+    data: { orgId: org.id, name: "Sales Pipeline", isDefault: true, order: 0 },
+  });
+  const stages = await Promise.all(
+    DEFAULT_STAGES.map((s) => db.pipelineStage.create({ data: { ...s, orgId: org.id, pipelineId: pipeline.id } }))
+  );
 
   const companies = await Promise.all(
     [
@@ -99,7 +107,7 @@ async function main() {
 
   // 10 deals across stages
   for (let i = 0; i < 10; i++) {
-    const stage = org.stages[i % org.stages.length];
+    const stage = stages[i % stages.length];
     const contact = contacts[i];
     await db.deal.create({
       data: {
@@ -109,6 +117,7 @@ async function main() {
         currency: "USD",
         status: i === 9 ? DealStatus.WON : i === 8 ? DealStatus.LOST : DealStatus.OPEN,
         stageId: stage.id,
+        pipelineId: pipeline.id,
         contactId: contact.id,
         companyId: contact.companyId,
         ownerId: owner.id,

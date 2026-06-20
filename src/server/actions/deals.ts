@@ -35,6 +35,7 @@ export async function createDeal(input: unknown): Promise<ActionResult<{ id: str
       currency: d.currency,
       status: d.status,
       stageId: d.stageId,
+      pipelineId: stage.pipelineId,
       contactId: c(d.contactId),
       companyId: c(d.companyId),
       ownerId: userId,
@@ -71,6 +72,7 @@ export async function updateDeal(id: string, input: unknown): Promise<ActionResu
       currency: d.currency,
       status: d.status,
       stageId: d.stageId,
+      pipelineId: stage.pipelineId,
       contactId: c(d.contactId),
       companyId: c(d.companyId),
       closeDate: d.closeDate ? new Date(d.closeDate) : null,
@@ -103,7 +105,7 @@ export async function moveDealToStage(id: string, stageId: string): Promise<Acti
   if (!deal) return fail("Deal not found");
   if (!stage) return fail("Stage not found");
   if (deal.stageId !== stageId) {
-    await db.deal.update({ where: { id }, data: { stageId } });
+    await db.deal.update({ where: { id }, data: { stageId, pipelineId: stage.pipelineId } });
     await recordStageEvent({
       orgId,
       dealId: id,

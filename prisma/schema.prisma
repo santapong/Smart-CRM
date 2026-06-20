@@ -204,7 +204,8 @@ model PipelineStage {
   pipeline Pipeline?    @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
   deals    Deal[]
 
-  @@unique([orgId, name])
+  @@unique([pipelineId, name])
+  @@index([orgId, name])
   @@index([orgId, order])
   @@index([pipelineId, order])
 }
