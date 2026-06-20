@@ -13,7 +13,11 @@ export const authConfig = {
         nextUrl.pathname === "/" ||
         nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/signup") ||
-        nextUrl.pathname.startsWith("/api/auth");
+        nextUrl.pathname.startsWith("/verify") ||
+        nextUrl.pathname.startsWith("/forgot") ||
+        nextUrl.pathname.startsWith("/reset") ||
+        nextUrl.pathname.startsWith("/api/auth") ||
+        nextUrl.pathname.startsWith("/api/email");
       if (isPublic) return true;
       return isLoggedIn;
     },

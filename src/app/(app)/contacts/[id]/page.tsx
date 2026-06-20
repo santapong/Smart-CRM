@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { getDefinitions, toFieldViews } from "@/lib/custom-fields";
 import { PageHeader } from "@/components/page-header";
+import { SendEmailDialog } from "@/components/email/send-email-dialog";
+import { EmailList } from "@/components/email/email-list";
 import { ContactForm } from "../contact-form";
 import { DeleteContactButton } from "./delete-button";
 import { TagPicker } from "./tag-picker";
@@ -11,7 +13,7 @@ import { TagPicker } from "./tag-picker";
 export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId } = await requireOrg();
-  const [contact, companies, allTags, defs] = await Promise.all([
+  const [contact, companies, allTags, defs, emails] = await Promise.all([
     db.contact.findFirst({
       where: { id, orgId },
       include: {
@@ -24,6 +26,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
     db.company.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.tag.findMany({ where: { orgId }, orderBy: { name: "asc" } }),
     getDefinitions(orgId, "contact"),
+    db.emailMessage.findMany({ where: { orgId, contactId: id }, orderBy: { createdAt: "desc" }, take: 10 }),
   ]);
   if (!contact) notFound();
 
@@ -54,6 +57,13 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
           </div>
         </section>
         <aside className="space-y-4">
+          <div className="rounded-lg border bg-card p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Emails</h3>
+              <SendEmailDialog contactId={contact.id} disabled={!contact.email} />
+            </div>
+            <EmailList emails={emails} hint={contact.email ? undefined : "Add an email address to send messages."} />
+          </div>
           <div className="rounded-lg border bg-card p-4">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tags</h3>
             <TagPicker

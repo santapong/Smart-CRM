@@ -10,6 +10,8 @@ export const env = createEnv({
     AUTH_TRUST_HOST: z.preprocess((v) => v === "true" || v === true, z.boolean().optional()),
     EMAIL_FROM: z.string().email().optional(),
     RESEND_API_KEY: z.string().optional(),
+    // Email webhook (M7) — env-gated; the webhook route is a 200 no-op unset.
+    RESEND_WEBHOOK_SECRET: z.string().optional(),
     // Async backbone (M2) — only needed to talk to Inngest Cloud.
     INNGEST_EVENT_KEY: z.string().optional(),
     INNGEST_SIGNING_KEY: z.string().optional(),
@@ -36,6 +38,7 @@ export const env = createEnv({
     AUTH_TRUST_HOST: process.env.AUTH_TRUST_HOST,
     EMAIL_FROM: process.env.EMAIL_FROM,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
+    RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
     INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY,
     INNGEST_SIGNING_KEY: process.env.INNGEST_SIGNING_KEY,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

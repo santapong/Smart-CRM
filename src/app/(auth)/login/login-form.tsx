@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,11 @@ export function LoginForm({ from, error }: { from?: string; error?: string }) {
       <div className="space-y-1.5">
         <Label htmlFor="password">Password</Label>
         <Input id="password" name="password" type="password" required defaultValue="password123" />
+        <div className="text-right">
+          <Link href="/forgot" className="text-sm text-muted-foreground hover:text-primary hover:underline">
+            Forgot password?
+          </Link>
+        </div>
       </div>
       <Button type="submit" disabled={busy} className="w-full">
         {busy ? "Signing in…" : "Sign in"}

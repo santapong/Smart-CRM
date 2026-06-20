@@ -87,6 +87,9 @@ model Organization {
   outboxEvents    OutboxEvent[]
   subscription    Subscription?
   entitlements    Entitlement[]
+  emailMessages   EmailMessage[]
+  suppressions    Suppression[]
+  sendingDomains  SendingDomain[]
 }
 
 model Membership {
@@ -386,4 +389,89 @@ model SavedView {
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId, entity])
+}
+
+// ---------- Email (M7) ----------
+
+// A single email tied to a tenant (and optionally a contact/deal). Records both
+// real sends and env-gated "skipped" placeholders so the timeline is complete
+// even without a Resend key configured.
+model EmailMessage {
+  id                String   @id @default(cuid())
+  orgId             String
+  contactId         String?
+  dealId            String?
+  direction         String // "outbound" | "inbound"
+  status            String // "sent" | "skipped" | "failed" | "queued"
+  subject           String
+  body              String   @db.Text
+  fromAddr          String
+  toAddr            String
+  providerMessageId String?
+  threadId          String?
+  firstOpenedAt     DateTime?
+  openCount         Int      @default(0)
+  lastClickedAt     DateTime?
+  clickCount        Int      @default(0)
+  sentById          String?
+  createdAt         DateTime @default(now())
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  events EmailEvent[]
+
+  @@index([orgId, createdAt])
+  @@index([orgId, contactId])
+  @@index([orgId, dealId])
+}
+
+// Provider delivery/engagement events (opened, clicked, bounced, complained).
+// `providerEventId` is unique so webhook retries are idempotent.
+model EmailEvent {
+  id              String   @id @default(cuid())
+  emailMessageId  String
+  type            String
+  providerEventId String?  @unique
+  createdAt       DateTime @default(now())
+
+  emailMessage EmailMessage @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
+
+  @@index([emailMessageId])
+}
+
+// Per-org suppression list — addresses we must not email (bounced/complained).
+model Suppression {
+  id        String   @id @default(cuid())
+  orgId     String
+  email     String
+  reason    String
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, email])
+}
+
+// Per-org verified sending domains (for DKIM/SPF via the provider).
+model SendingDomain {
+  id        String   @id @default(cuid())
+  orgId     String
+  domain    String
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, domain])
+}
+
+// One-time password-reset tokens (D2). Not tenant-scoped — keyed by email so a
+// user can reset before selecting an org.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
 }

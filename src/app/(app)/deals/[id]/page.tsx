@@ -3,13 +3,15 @@ import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { getDefinitions, toFieldViews } from "@/lib/custom-fields";
 import { PageHeader } from "@/components/page-header";
+import { SendEmailDialog } from "@/components/email/send-email-dialog";
+import { EmailList } from "@/components/email/email-list";
 import { DealForm } from "../deal-form";
 import { DealStatusActions } from "./status-actions";
 
 export default async function DealDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId } = await requireOrg();
-  const [deal, stages, contacts, companies, defs] = await Promise.all([
+  const [deal, stages, contacts, companies, defs, emails] = await Promise.all([
     db.deal.findFirst({
       where: { id, orgId },
       include: { activities: { orderBy: { createdAt: "desc" }, take: 20 }, contact: true, company: true, stage: true },
@@ -18,6 +20,7 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
     db.contact.findMany({ where: { orgId }, orderBy: { lastName: "asc" }, select: { id: true, firstName: true, lastName: true } }),
     db.company.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     getDefinitions(orgId, "deal"),
+    db.emailMessage.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "desc" }, take: 10 }),
   ]);
   if (!deal) notFound();
 
@@ -48,7 +51,17 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
             }}
           />
         </section>
-        <aside>
+        <aside className="space-y-4">
+          <div className="rounded-lg border bg-card p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Emails</h3>
+              <SendEmailDialog dealId={deal.id} disabled={!deal.contact?.email} />
+            </div>
+            <EmailList
+              emails={emails}
+              hint={deal.contact?.email ? undefined : "Link a contact with an email to send messages."}
+            />
+          </div>
           <div className="rounded-lg border bg-card p-4">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Activity</h3>
             {deal.activities.length === 0 ? (
