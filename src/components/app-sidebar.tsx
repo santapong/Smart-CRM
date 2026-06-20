@@ -5,6 +5,7 @@ import { LayoutDashboard, Users, Building2, KanbanSquare, ListChecks, Settings, 
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { openCommandPalette } from "@/components/command-palette";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
@@ -53,9 +54,10 @@ export function AppSidebar({ orgName, userEmail }: { orgName: string; userEmail:
       </nav>
       <div className="border-t p-3">
         <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
+        <ThemeToggle />
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <LogOut className="h-3.5 w-3.5" />
           Sign out

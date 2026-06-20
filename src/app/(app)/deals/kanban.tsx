@@ -16,15 +16,25 @@ import {
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
+import { isRotten } from "@/lib/pipeline";
 import { moveDealToStage } from "@/server/actions/deals";
 
-type Stage = { id: string; name: string; color: string };
+type Stage = {
+  id: string;
+  name: string;
+  color: string;
+  rottenDays: number | null;
+  probability: number | null;
+};
 type Deal = {
   id: string;
   title: string;
   value: number;
   currency: string;
   stageId: string;
+  status: string;
+  probability: number | null;
+  updatedAt: string;
   contact: { id: string; name: string } | null;
   company: { id: string; name: string } | null;
 };
@@ -90,11 +100,13 @@ export function KanbanBoard({ stages, deals: initialDeals }: { stages: Stage[]; 
             currency={(byStage[s.id]?.[0]?.currency) ?? "USD"}
             count={byStage[s.id]?.length ?? 0}
           >
-            {byStage[s.id]?.map((d) => <DealCard key={d.id} deal={d} />) ?? null}
+            {byStage[s.id]?.map((d) => <DealCard key={d.id} deal={d} stage={s} />) ?? null}
           </StageColumn>
         ))}
       </div>
-      <DragOverlay>{active ? <DealCard deal={active} dragging /> : null}</DragOverlay>
+      <DragOverlay>
+        {active ? <DealCard deal={active} stage={stages.find((s) => s.id === active.stageId)} dragging /> : null}
+      </DragOverlay>
     </DndContext>
   );
 }
@@ -131,9 +143,10 @@ function StageColumn({
   );
 }
 
-function DealCard({ deal, dragging }: { deal: Deal; dragging?: boolean }) {
+function DealCard({ deal, stage, dragging }: { deal: Deal; stage?: Stage; dragging?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: deal.id });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+  const rotten = stage ? isRotten({ updatedAt: deal.updatedAt, status: deal.status }, { rottenDays: stage.rottenDays }) : false;
   return (
     <div
       ref={setNodeRef}
@@ -141,12 +154,26 @@ function DealCard({ deal, dragging }: { deal: Deal; dragging?: boolean }) {
       {...listeners}
       style={style}
       className={`select-none rounded-md border bg-background p-3 shadow-sm hover:shadow ${
-        isDragging || dragging ? "opacity-80" : ""
-      }`}
+        rotten ? "border-destructive/60" : ""
+      } ${isDragging || dragging ? "opacity-80" : ""}`}
     >
-      <Link href={`/deals/${deal.id}`} className="block text-sm font-medium hover:underline" onMouseDown={(e) => e.stopPropagation()}>
-        {deal.title}
-      </Link>
+      <div className="flex items-start justify-between gap-2">
+        <Link
+          href={`/deals/${deal.id}`}
+          className="block text-sm font-medium hover:underline"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {deal.title}
+        </Link>
+        {rotten && (
+          <span
+            className="mt-1 h-2 w-2 shrink-0 rounded-full bg-destructive"
+            role="img"
+            aria-label="Stale deal"
+            title="Stale"
+          />
+        )}
+      </div>
       <p className="mt-1 text-xs text-muted-foreground">
         {formatCurrency(deal.value, deal.currency)}
         {deal.company && <> · {deal.company.name}</>}
