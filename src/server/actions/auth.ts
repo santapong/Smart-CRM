@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { slugify } from "@/lib/utils";
+import { rateLimit } from "@/lib/ratelimit";
 
 const signUpSchema = z.object({
   name: z.string().min(2).max(80),
@@ -25,6 +26,12 @@ export async function signUpAction(input: unknown): Promise<ActionResult<{ userI
   if (!parsed.success) return fail("Invalid input", parsed.error.flatten().fieldErrors);
 
   const { name, email, password, orgName } = parsed.data;
+
+  // Rate limit sign-up attempts per email. No-op when Upstash is not configured
+  // (local/CI/tests), so existing tests still exercise the happy path.
+  const limit = await rateLimit(`signup:${email}`);
+  if (!limit.success) return fail("Too many attempts, try again later");
+
   const existing = await db.user.findUnique({ where: { email } });
   if (existing) return fail("Email already in use");
 

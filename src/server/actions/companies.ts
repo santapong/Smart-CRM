@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { db, optimisticUpdate, OCC_CONFLICT_MESSAGE } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 
@@ -11,6 +11,8 @@ const companySchema = z.object({
   industry: z.string().max(80).optional().or(z.literal("")),
   size: z.string().max(40).optional().or(z.literal("")),
   notes: z.string().max(4000).optional().or(z.literal("")),
+  // Optimistic concurrency (M1) — optional; guards against concurrent writes.
+  expectedVersion: z.number().int().min(0).optional(),
 });
 
 const c = (v: string | undefined) => (v && v.length > 0 ? v : null);
@@ -34,10 +36,13 @@ export async function updateCompany(id: string, input: unknown): Promise<ActionR
   const existing = await db.company.findFirst({ where: { id, orgId } });
   if (!existing) return fail("Not found");
   const d = parsed.data;
-  await db.company.update({
-    where: { id },
+  const res = await optimisticUpdate(db.company, {
+    id,
+    orgId,
+    expectedVersion: d.expectedVersion,
     data: { name: d.name, domain: c(d.domain), industry: c(d.industry), size: c(d.size), notes: c(d.notes) },
   });
+  if (!res.ok) return fail(OCC_CONFLICT_MESSAGE);
   revalidatePath("/companies");
   revalidatePath(`/companies/${id}`);
   return ok({ id });

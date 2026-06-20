@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
-import { db } from "@/lib/db";
+import { db, optimisticUpdate, OCC_CONFLICT_MESSAGE } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { applyCustomFields } from "@/lib/custom-fields";
@@ -17,6 +17,9 @@ const contactSchema = z.object({
   companyId: z.string().optional().or(z.literal("")),
   notes: z.string().max(4000).optional().or(z.literal("")),
   customFields: z.record(z.unknown()).optional(),
+  // Optimistic concurrency (M1) — optional; when present the update is guarded
+  // against concurrent writes via the row's `version`.
+  expectedVersion: z.number().int().min(0).optional(),
 });
 
 function clean(v: string | undefined) {
@@ -65,8 +68,10 @@ export async function updateContact(id: string, input: unknown): Promise<ActionR
   const d = parsed.data;
   const cf = await applyCustomFields(orgId, "contact", d.customFields ?? {});
   if (!cf.ok) return fail("Invalid custom fields", cf.errors);
-  await db.contact.update({
-    where: { id },
+  const res = await optimisticUpdate(db.contact, {
+    id,
+    orgId,
+    expectedVersion: d.expectedVersion,
     data: {
       firstName: d.firstName,
       lastName: d.lastName,
@@ -78,6 +83,7 @@ export async function updateContact(id: string, input: unknown): Promise<ActionR
       customFields: cf.value as Prisma.InputJsonValue,
     },
   });
+  if (!res.ok) return fail(OCC_CONFLICT_MESSAGE);
   revalidatePath("/contacts");
   revalidatePath(`/contacts/${id}`);
   return ok({ id });
