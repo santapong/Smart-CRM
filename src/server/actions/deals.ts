@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
+import { recordStageEvent } from "@/lib/stage-history";
 
 const dealSchema = z.object({
   title: z.string().min(1).max(160),
@@ -41,6 +42,14 @@ export async function createDeal(input: unknown): Promise<ActionResult<{ id: str
       notes: c(d.notes),
     },
   });
+  await recordStageEvent({
+    orgId,
+    dealId: created.id,
+    toStageId: created.stageId,
+    toStatus: created.status,
+    value: created.value,
+    changedById: userId,
+  });
   revalidatePath("/deals");
   return ok({ id: created.id });
 }
@@ -48,7 +57,7 @@ export async function createDeal(input: unknown): Promise<ActionResult<{ id: str
 export async function updateDeal(id: string, input: unknown): Promise<ActionResult<{ id: string }>> {
   const parsed = dealSchema.safeParse(input);
   if (!parsed.success) return fail("Invalid input", parsed.error.flatten().fieldErrors);
-  const { orgId } = await requireOrg();
+  const { orgId, userId } = await requireOrg();
   const existing = await db.deal.findFirst({ where: { id, orgId } });
   if (!existing) return fail("Not found");
   const stage = await db.pipelineStage.findFirst({ where: { id: parsed.data.stageId, orgId } });
@@ -68,28 +77,65 @@ export async function updateDeal(id: string, input: unknown): Promise<ActionResu
       notes: c(d.notes),
     },
   });
+  if (existing.stageId !== d.stageId || existing.status !== d.status) {
+    await recordStageEvent({
+      orgId,
+      dealId: id,
+      fromStageId: existing.stageId,
+      toStageId: d.stageId,
+      fromStatus: existing.status,
+      toStatus: d.status,
+      value: d.value,
+      changedById: userId,
+    });
+  }
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);
   return ok({ id });
 }
 
 export async function moveDealToStage(id: string, stageId: string): Promise<ActionResult<{ id: string; stageId: string }>> {
-  const { orgId } = await requireOrg();
+  const { orgId, userId } = await requireOrg();
   const [deal, stage] = await Promise.all([
     db.deal.findFirst({ where: { id, orgId } }),
     db.pipelineStage.findFirst({ where: { id: stageId, orgId } }),
   ]);
   if (!deal) return fail("Deal not found");
   if (!stage) return fail("Stage not found");
-  await db.deal.update({ where: { id }, data: { stageId } });
+  if (deal.stageId !== stageId) {
+    await db.deal.update({ where: { id }, data: { stageId } });
+    await recordStageEvent({
+      orgId,
+      dealId: id,
+      fromStageId: deal.stageId,
+      toStageId: stageId,
+      fromStatus: deal.status,
+      toStatus: deal.status,
+      value: deal.value,
+      changedById: userId,
+    });
+  }
   revalidatePath("/deals");
   return ok({ id, stageId });
 }
 
 export async function setDealStatus(id: string, status: "OPEN" | "WON" | "LOST"): Promise<ActionResult<{ id: string }>> {
-  const { orgId } = await requireOrg();
-  const res = await db.deal.updateMany({ where: { id, orgId }, data: { status } });
-  if (res.count === 0) return fail("Not found");
+  const { orgId, userId } = await requireOrg();
+  const deal = await db.deal.findFirst({ where: { id, orgId } });
+  if (!deal) return fail("Not found");
+  if (deal.status !== status) {
+    await db.deal.update({ where: { id }, data: { status } });
+    await recordStageEvent({
+      orgId,
+      dealId: id,
+      fromStageId: deal.stageId,
+      toStageId: deal.stageId,
+      fromStatus: deal.status,
+      toStatus: status,
+      value: deal.value,
+      changedById: userId,
+    });
+  }
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);
   return ok({ id });

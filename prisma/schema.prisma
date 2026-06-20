@@ -80,6 +80,7 @@ model Organization {
   activities  Activity[]
   stages      PipelineStage[]
   tags        Tag[]
+  dealStageEvents DealStageEvent[]
 }
 
 model Membership {
@@ -204,6 +205,7 @@ model Deal {
   contact    Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
   owner      User?          @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   activities Activity[]
+  stageEvents DealStageEvent[]
 
   @@index([orgId, stageId])
   @@index([orgId, status])
@@ -237,4 +239,28 @@ model Activity {
 
   @@index([orgId, dueAt])
   @@index([orgId, completedAt])
+}
+
+// ---------- Analytics ----------
+
+// Append-only log of deal stage/status transitions. Powers funnel,
+// velocity and win-rate analytics (see docs/research/briefs/backend/15).
+model DealStageEvent {
+  id          String      @id @default(cuid())
+  orgId       String
+  dealId      String
+  fromStageId String?
+  toStageId   String?
+  fromStatus  DealStatus?
+  toStatus    DealStatus?
+  value       Decimal     @default(0) @db.Decimal(12, 2)
+  changedById String?
+  changedAt   DateTime    @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deal Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, dealId])
+  @@index([orgId, toStageId])
+  @@index([orgId, changedAt])
 }
