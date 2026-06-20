@@ -73,14 +73,20 @@ model Organization {
   slug      String   @unique
   createdAt DateTime @default(now())
 
-  memberships Membership[]
-  companies   Company[]
-  contacts    Contact[]
-  deals       Deal[]
-  activities  Activity[]
-  stages      PipelineStage[]
-  tags        Tag[]
+  memberships     Membership[]
+  companies       Company[]
+  contacts        Contact[]
+  deals           Deal[]
+  activities      Activity[]
+  stages          PipelineStage[]
+  tags            Tag[]
   dealStageEvents DealStageEvent[]
+  pipelines       Pipeline[]
+  customFieldDefs CustomFieldDefinition[]
+  savedViews      SavedView[]
+  outboxEvents    OutboxEvent[]
+  subscription    Subscription?
+  entitlements    Entitlement[]
 }
 
 model Membership {
@@ -101,15 +107,17 @@ model Membership {
 // ---------- CRM domain ----------
 
 model Company {
-  id        String   @id @default(cuid())
-  orgId     String
-  name      String
-  domain    String?
-  industry  String?
-  size      String?
-  notes     String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  orgId        String
+  name         String
+  domain       String?
+  industry     String?
+  size         String?
+  notes        String?  @db.Text
+  customFields Json?
+  version      Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   contacts Contact[]
@@ -119,17 +127,19 @@ model Company {
 }
 
 model Contact {
-  id        String   @id @default(cuid())
-  orgId     String
-  companyId String?
-  firstName String
-  lastName  String
-  email     String?
-  phone     String?
-  title     String?
-  notes     String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  orgId        String
+  companyId    String?
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  title        String?
+  notes        String?  @db.Text
+  customFields Json?
+  version      Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   company    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
@@ -163,18 +173,40 @@ model ContactTag {
   @@id([contactId, tagId])
 }
 
-model PipelineStage {
-  id    String @id @default(cuid())
-  orgId String
-  name  String
-  order Int
-  color String @default("#3b82f6")
+// A named sales process; an org can have many (M6 — multiple pipelines).
+model Pipeline {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  order     Int      @default(0)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
 
-  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  deals Deal[]
+  org    Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  stages PipelineStage[]
+  deals  Deal[]
 
   @@unique([orgId, name])
   @@index([orgId, order])
+}
+
+model PipelineStage {
+  id          String  @id @default(cuid())
+  orgId       String
+  pipelineId  String?
+  name        String
+  order       Int
+  color       String  @default("#3b82f6")
+  rottenDays  Int?
+  probability Int?
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  pipeline Pipeline?    @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@unique([orgId, name])
+  @@index([orgId, order])
+  @@index([pipelineId, order])
 }
 
 enum DealStatus {
@@ -184,31 +216,37 @@ enum DealStatus {
 }
 
 model Deal {
-  id        String     @id @default(cuid())
-  orgId     String
-  title     String
-  value     Decimal    @default(0) @db.Decimal(12, 2)
-  currency  String     @default("USD")
-  status    DealStatus @default(OPEN)
-  stageId   String
-  companyId String?
-  contactId String?
-  ownerId   String?
-  closeDate DateTime?
-  notes     String?    @db.Text
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id           String     @id @default(cuid())
+  orgId        String
+  title        String
+  value        Decimal    @default(0) @db.Decimal(12, 2)
+  currency     String     @default("USD")
+  status       DealStatus @default(OPEN)
+  stageId      String
+  pipelineId   String?
+  companyId    String?
+  contactId    String?
+  ownerId      String?
+  probability  Int?
+  closeDate    DateTime?
+  notes        String?    @db.Text
+  customFields Json?
+  version      Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-  org        Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  stage      PipelineStage  @relation(fields: [stageId], references: [id])
-  company    Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  contact    Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  owner      User?          @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  activities Activity[]
+  org         Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  stage       PipelineStage    @relation(fields: [stageId], references: [id])
+  pipeline    Pipeline?        @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
+  company     Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact     Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner       User?            @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  activities  Activity[]
   stageEvents DealStageEvent[]
 
   @@index([orgId, stageId])
   @@index([orgId, status])
+  @@index([orgId, pipelineId])
 }
 
 enum ActivityType {
@@ -229,6 +267,7 @@ model Activity {
   contactId   String?
   dealId      String?
   ownerId     String?
+  version     Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -263,4 +302,87 @@ model DealStageEvent {
   @@index([orgId, dealId])
   @@index([orgId, toStageId])
   @@index([orgId, changedAt])
+}
+
+// ---------- Platform foundations ----------
+
+// Per-org custom field definitions (M3). Values live in the JSONB
+// `customFields` column on Contact/Company/Deal.
+model CustomFieldDefinition {
+  id        String   @id @default(cuid())
+  orgId     String
+  entity    String // "contact" | "company" | "deal"
+  key       String
+  label     String
+  type      String // "text" | "number" | "date" | "boolean" | "select"
+  config    Json?
+  required  Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, entity, key])
+  @@index([orgId, entity])
+}
+
+// Transactional outbox (M2): domain events written in the same tx as a
+// mutation, then drained/fanned-out by a background worker.
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  orgId       String?
+  name        String
+  payload     Json
+  status      String    @default("PENDING") // PENDING | PROCESSED | FAILED
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+// Billing/entitlements (M4). Plans are code-defined; this mirrors Stripe.
+model Subscription {
+  id                   String    @id @default(cuid())
+  orgId                String    @unique
+  plan                 String    @default("free")
+  status               String    @default("active")
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// Per-org feature/limit overrides (M4).
+model Entitlement {
+  id       String  @id @default(cuid())
+  orgId    String
+  key      String
+  intValue Int?
+  boolValue Boolean?
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, key])
+}
+
+// Saved/shared list views with stored filters (M6).
+model SavedView {
+  id        String   @id @default(cuid())
+  orgId     String
+  ownerId   String?
+  entity    String // "contact" | "company" | "deal" | "activity"
+  name      String
+  filters   Json
+  shared    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, entity])
 }
