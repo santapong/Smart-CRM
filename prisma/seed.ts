@@ -1,5 +1,6 @@
 import { PrismaClient, Role, DealStatus, ActivityType } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { ensureSearchIndexes } from "@/lib/search-indexes";
 
 const db = new PrismaClient();
 
@@ -143,6 +144,11 @@ async function main() {
       },
     });
   }
+
+  // Full-text search GIN indexes (M19a) — best-effort. Search works without
+  // these; ensureSearchIndexes swallows failures (e.g. missing privileges) so a
+  // fresh CI/dev DB still seeds cleanly.
+  await ensureSearchIndexes(db);
 
   console.log(`Seeded org "${org.name}" (owner: owner@demo.com / password123)`);
 }

@@ -53,6 +53,13 @@ export const env = createEnv({
     // eSign (M18) — env-gated scaffold. With DROPBOX_SIGN_API_KEY unset the eSign
     // helpers return "not configured" and the /api/esign/webhook route 501s.
     DROPBOX_SIGN_API_KEY: z.string().optional(),
+    // Search (M19a) — env-gated. The live search path is Postgres full-text
+    // search (zero config). Set MEILISEARCH_HOST to route through a Meilisearch
+    // instance instead; with it unset searchProvider() is "postgres" and the
+    // meili adapter (src/lib/search-meili.ts) stays a scaffold. The SDK is NOT
+    // bundled (mirrors the SSO/eSign scaffolds).
+    MEILISEARCH_HOST: z.string().url().optional(),
+    MEILISEARCH_KEY: z.string().optional(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   },
   client: {
@@ -94,6 +101,8 @@ export const env = createEnv({
     PUSHER_CLUSTER: process.env.PUSHER_CLUSTER,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
     DROPBOX_SIGN_API_KEY: process.env.DROPBOX_SIGN_API_KEY,
+    MEILISEARCH_HOST: process.env.MEILISEARCH_HOST,
+    MEILISEARCH_KEY: process.env.MEILISEARCH_KEY,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,

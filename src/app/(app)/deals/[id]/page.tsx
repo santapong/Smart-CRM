@@ -11,6 +11,8 @@ import { EmailList } from "@/components/email/email-list";
 import { Comments } from "@/components/comments";
 import { loadCommentsData } from "@/lib/comments-data";
 import { Attachments } from "@/components/documents/attachments";
+import { Timeline } from "@/components/audit/timeline";
+import { loadDealTimeline } from "@/lib/audit-timeline";
 import { DealForm } from "../deal-form";
 import { DealStatusActions } from "./status-actions";
 import { LineItems } from "./line-items";
@@ -38,6 +40,8 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
     db.document.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "desc" }, take: 10, select: { id: true, title: true, status: true } }),
   ]);
   if (!deal) notFound();
+
+  const timeline = await loadDealTimeline(orgId, id);
 
   return (
     <>
@@ -151,6 +155,10 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
                 ))}
               </ul>
             )}
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</h3>
+            <Timeline entries={timeline} />
           </div>
         </aside>
       </div>

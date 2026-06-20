@@ -6,6 +6,7 @@ import { db, optimisticUpdate, OCC_CONFLICT_MESSAGE } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { recordStageEvent } from "@/lib/stage-history";
+import { recordAudit } from "@/lib/audit";
 import { applyCustomFields } from "@/lib/custom-fields";
 import { emit, EVENTS } from "@/lib/events";
 
@@ -71,6 +72,17 @@ export async function createDeal(input: unknown): Promise<ActionResult<{ id: str
       orgId,
       name: EVENTS.DEAL_CREATED,
       payload: { dealId: deal.id, stageId: deal.stageId, status: deal.status },
+    });
+    // Audit (M19a) — who created this deal. Other entities can adopt recordAudit
+    // the same way (pass the tx as the first arg, next to emit).
+    await recordAudit(tx, {
+      orgId,
+      actorId: userId,
+      action: "deal.created",
+      entityType: "deal",
+      entityId: deal.id,
+      summary: `Created deal “${deal.title}”`,
+      metadata: { title: deal.title, value: deal.value.toString(), stageId: deal.stageId },
     });
     return deal;
   });
@@ -141,6 +153,20 @@ export async function updateDeal(id: string, input: unknown): Promise<ActionResu
           payload: { dealId: id, fromStatus: existing.status, toStatus: d.status },
         });
       }
+      await recordAudit(tx, {
+        orgId,
+        actorId: userId,
+        action: "deal.updated",
+        entityType: "deal",
+        entityId: id,
+        summary: `Updated deal “${d.title}”`,
+        metadata: {
+          stageChanged,
+          statusChanged,
+          ...(stageChanged ? { fromStageId: existing.stageId, toStageId: d.stageId } : {}),
+          ...(statusChanged ? { fromStatus: existing.status, toStatus: d.status } : {}),
+        },
+      });
     });
   } catch (err) {
     if (err instanceof OccConflictError) return fail(OCC_CONFLICT_MESSAGE);
@@ -180,6 +206,15 @@ export async function moveDealToStage(id: string, stageId: string): Promise<Acti
         name: EVENTS.DEAL_STAGE_CHANGED,
         payload: { dealId: id, fromStageId: deal.stageId, toStageId: stageId },
       });
+      await recordAudit(tx, {
+        orgId,
+        actorId: userId,
+        action: "deal.moved",
+        entityType: "deal",
+        entityId: id,
+        summary: `Moved deal “${deal.title}” to ${stage.name}`,
+        metadata: { fromStageId: deal.stageId, toStageId: stageId },
+      });
     });
   }
   revalidatePath("/deals");
@@ -211,6 +246,15 @@ export async function setDealStatus(id: string, status: "OPEN" | "WON" | "LOST")
         name: EVENTS.DEAL_STATUS_CHANGED,
         payload: { dealId: id, fromStatus: deal.status, toStatus: status },
       });
+      await recordAudit(tx, {
+        orgId,
+        actorId: userId,
+        action: "deal.status_changed",
+        entityType: "deal",
+        entityId: id,
+        summary: `Marked deal “${deal.title}” ${status}`,
+        metadata: { fromStatus: deal.status, toStatus: status },
+      });
     });
   }
   revalidatePath("/deals");
@@ -219,9 +263,21 @@ export async function setDealStatus(id: string, status: "OPEN" | "WON" | "LOST")
 }
 
 export async function deleteDeal(id: string): Promise<ActionResult<{ id: string }>> {
-  const { orgId } = await requireOrg();
-  const res = await db.deal.deleteMany({ where: { id, orgId } });
-  if (res.count === 0) return fail("Not found");
+  const { orgId, userId } = await requireOrg();
+  const deal = await db.deal.findFirst({ where: { id, orgId } });
+  if (!deal) return fail("Not found");
+  await db.$transaction(async (tx) => {
+    await tx.deal.delete({ where: { id } });
+    await recordAudit(tx, {
+      orgId,
+      actorId: userId,
+      action: "deal.deleted",
+      entityType: "deal",
+      entityId: id,
+      summary: `Deleted deal “${deal.title}”`,
+      metadata: { title: deal.title },
+    });
+  });
   revalidatePath("/deals");
   return ok({ id });
 }

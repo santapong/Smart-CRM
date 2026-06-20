@@ -119,6 +119,7 @@ model Organization {
   documents       Document[]
   attachments     Attachment[]
   signatureRequests SignatureRequest[]
+  auditLogs       AuditLog[]
 }
 
 model Membership {
@@ -1274,4 +1275,29 @@ model SignatureRequest {
 
   @@index([orgId])
   @@index([orgId, documentId])
+}
+
+// ---------- Audit log & history timeline (M19a) ----------
+
+// An append-only record of who did what to which entity (M19a). `actorId` is the
+// acting User id (plain string, no relation — keeps churn down, mirrors
+// Notification/Comment). `action` is a dotted verb ("deal.updated"); `entityType`
+// + `entityId` point at the affected record so per-record history timelines can
+// merge these with DealStageEvent. `summary` is a short human line; `metadata`
+// holds structured before/after detail. Org-scoped.
+model AuditLog {
+  id         String   @id @default(cuid())
+  orgId      String
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  summary    String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, entityType, entityId])
+  @@index([orgId, createdAt])
 }
