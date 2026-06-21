@@ -22,6 +22,7 @@ export const EVENTS = {
   COMMENT_CREATED: "comment.created",
   DOCUMENT_GENERATED: "document.generated",
   SIGNATURE_REQUESTED: "signature.requested",
+  CAMPAIGN_SEND_REQUESTED: "campaign.send_requested",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

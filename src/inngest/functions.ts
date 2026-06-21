@@ -6,6 +6,8 @@ import { sendNotificationDigests } from "@/lib/notification-digest";
 import { retryPendingWebhooks } from "@/lib/webhooks";
 import { processDueEnrollments } from "@/lib/sequences/runner";
 import { processImportJob } from "@/lib/import/runner";
+import { runCampaignSend } from "@/lib/campaigns";
+import { EVENTS } from "@/lib/events";
 
 /**
  * Drain the transactional outbox on a schedule (M2). Runs every minute and
@@ -96,4 +98,20 @@ export const importRunJob = inngest.createFunction(
   },
 );
 
-export const functions = [outboxDrain, runWorkflowJob, notificationDigest, webhookRetry, sequenceTick, importRunJob];
+/**
+ * Fan out a marketing campaign (M19b). Triggered by sending the
+ * CAMPAIGN_SEND_REQUESTED event from the sendCampaign action. A thin wrapper
+ * around the plain {@link runCampaignSend}: it loops the campaign's PENDING
+ * recipients, sends each via the env-gated email pipeline (recorded + skipped
+ * offline), and marks the campaign SENT. Tests call runCampaignSend directly.
+ */
+export const campaignSend = inngest.createFunction(
+  { id: "campaign-send", triggers: [{ event: EVENTS.CAMPAIGN_SEND_REQUESTED }] },
+  async ({ event }) => {
+    const { orgId, campaignId } = (event.data ?? {}) as { orgId: string; campaignId: string };
+    if (!orgId || !campaignId) return { skipped: "missing_args" };
+    return runCampaignSend(orgId, campaignId);
+  },
+);
+
+export const functions = [outboxDrain, runWorkflowJob, notificationDigest, webhookRetry, sequenceTick, importRunJob, campaignSend];

@@ -120,6 +120,8 @@ model Organization {
   attachments     Attachment[]
   signatureRequests SignatureRequest[]
   auditLogs       AuditLog[]
+  campaigns       Campaign[]
+  campaignRecipients CampaignRecipient[]
 }
 
 model Membership {
@@ -185,6 +187,7 @@ model Contact {
   activities  Activity[]
   documents   Document[]
   attachments Attachment[]
+  campaignRecipients CampaignRecipient[]
 
   @@index([orgId, lastName])
   @@index([orgId, email])
@@ -1300,4 +1303,71 @@ model AuditLog {
 
   @@index([orgId, entityType, entityId])
   @@index([orgId, createdAt])
+}
+
+// ---------- Marketing campaigns (M19b) ----------
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+}
+
+enum RecipientStatus {
+  PENDING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+// A bulk marketing email built on the M7 email pipeline. `audience` is a simple,
+// explicit filter spec ({ type: "all" } | { type: "tag", tagId } |
+// { type: "company", companyId }) resolved to org-scoped contacts at send time
+// (see src/lib/campaigns.ts). Sending materializes CampaignRecipient rows, fans
+// out through sendEmail (skipping suppressed addresses), and records every send
+// as an EmailMessage so opens/clicks flow back via the existing Resend webhook.
+model Campaign {
+  id          String         @id @default(cuid())
+  orgId       String
+  name        String
+  subject     String
+  bodyHtml    String         @db.Text
+  status      CampaignStatus @default(DRAFT)
+  audience    Json?
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdById String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  org        Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  recipients CampaignRecipient[]
+
+  @@index([orgId])
+  @@index([orgId, status])
+}
+
+// One resolved recipient of a Campaign. `emailMessageId` links to the sent
+// EmailMessage so campaignStats can join EmailEvent for opens/clicks. Unique per
+// (campaign, email) so re-materializing is idempotent and never double-sends.
+model CampaignRecipient {
+  id             String          @id @default(cuid())
+  orgId          String
+  campaignId     String
+  contactId      String?
+  email          String
+  status         RecipientStatus @default(PENDING)
+  emailMessageId String?
+  error          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaign Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, email])
+  @@index([orgId, campaignId])
 }

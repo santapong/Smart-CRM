@@ -26,6 +26,7 @@ export type PlanLimits = {
   imports: number;
   integrations: number;
   documentTemplates: number;
+  campaigns: number;
 };
 
 export type LimitKey = keyof PlanLimits;
@@ -43,13 +44,13 @@ export const PLANS: Record<PlanKey, Plan> = {
   free: {
     key: "free",
     name: "Free",
-    limits: { pipelines: 1, customFields: 0, savedViews: 2, seats: 3, leads: 100, forms: 1, workflows: 0, reports: 3, products: 10, sequences: 0, imports: 5, integrations: 1, documentTemplates: 1 },
+    limits: { pipelines: 1, customFields: 0, savedViews: 2, seats: 3, leads: 100, forms: 1, workflows: 0, reports: 3, products: 10, sequences: 0, imports: 5, integrations: 1, documentTemplates: 1, campaigns: 1 },
     features: ["contacts", "companies", "activities", "dashboard", "search", "leads", "forms"],
   },
   starter: {
     key: "starter",
     name: "Starter",
-    limits: { pipelines: 3, customFields: 25, savedViews: 10, seats: 10, leads: 5000, forms: 10, workflows: 5, reports: 25, products: 100, sequences: 5, imports: 50, integrations: 3, documentTemplates: 10 },
+    limits: { pipelines: 3, customFields: 25, savedViews: 10, seats: 10, leads: 5000, forms: 10, workflows: 5, reports: 25, products: 100, sequences: 5, imports: 50, integrations: 3, documentTemplates: 10, campaigns: 10 },
     features: [
       "contacts",
       "companies",
@@ -65,6 +66,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "csv_import",
       "automation",
       "workflows",
+      "campaigns",
     ],
   },
   pro: {
@@ -84,6 +86,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       imports: UNLIMITED,
       integrations: UNLIMITED,
       documentTemplates: UNLIMITED,
+      campaigns: UNLIMITED,
     },
     features: [
       "contacts",
@@ -104,6 +107,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "api",
       "webhooks",
       "ai",
+      "campaigns",
     ],
   },
   business: {
@@ -123,6 +127,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       imports: UNLIMITED,
       integrations: UNLIMITED,
       documentTemplates: UNLIMITED,
+      campaigns: UNLIMITED,
     },
     features: [
       "contacts",
@@ -146,6 +151,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "teams",
       "sso",
       "recurring_revenue",
+      "campaigns",
     ],
   },
 };

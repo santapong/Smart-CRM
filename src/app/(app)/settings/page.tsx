@@ -16,7 +16,9 @@ import { ScoringRulesSection } from "./scoring-rules-section";
 import { RolesSection } from "./roles-section";
 import { TeamsSection } from "./teams-section";
 import { SSOSection } from "./sso-section";
+import { UsageSection } from "./usage-section";
 import { ssoConfigured } from "@/lib/sso";
+import { getUsage } from "@/lib/usage";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +26,7 @@ export default async function SettingsPage() {
   const { orgId, role } = await requireOrg();
   if (!hasRole(role, "ADMIN")) redirect("/dashboard");
 
-  const [org, members, fieldDefs, apiKeys, webhookEndpoints, scoringRules, customRoles, teams, ssoConnections] =
+  const [org, members, fieldDefs, apiKeys, webhookEndpoints, scoringRules, customRoles, teams, ssoConnections, usage] =
     await Promise.all([
     db.organization.findUnique({ where: { id: orgId } }),
     db.membership.findMany({
@@ -57,6 +59,7 @@ export default async function SettingsPage() {
       include: { members: { orderBy: { createdAt: "asc" } } },
     }),
     db.sSOConnection.findMany({ where: { orgId }, orderBy: { createdAt: "desc" } }),
+    getUsage(orgId),
   ]);
   if (!org) redirect("/login");
 
@@ -94,6 +97,13 @@ export default async function SettingsPage() {
               name: m.user.name,
             }))}
           />
+        </section>
+        <section className="rounded-lg border bg-card p-6 lg:col-span-2">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Usage &amp; billing</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Your current plan usage against its limits. Bars turn amber near a limit and red once it&apos;s reached.
+          </p>
+          <UsageSection usage={usage} />
         </section>
         <section className="rounded-lg border bg-card p-6">
           <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Roles &amp; permissions</h2>
