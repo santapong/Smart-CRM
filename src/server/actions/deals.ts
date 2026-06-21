@@ -1,9 +1,14 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
+import { db, optimisticUpdate, OCC_CONFLICT_MESSAGE } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
+import { recordStageEvent } from "@/lib/stage-history";
+import { recordAudit } from "@/lib/audit";
+import { applyCustomFields } from "@/lib/custom-fields";
+import { emit, EVENTS } from "@/lib/events";
 
 const dealSchema = z.object({
   title: z.string().min(1).max(160),
@@ -15,7 +20,13 @@ const dealSchema = z.object({
   companyId: z.string().optional().or(z.literal("")),
   closeDate: z.string().optional().or(z.literal("")),
   notes: z.string().max(4000).optional().or(z.literal("")),
+  customFields: z.record(z.unknown()).optional(),
+  // Optimistic concurrency (M1) — optional; guards against concurrent writes.
+  expectedVersion: z.number().int().min(0).optional(),
 });
+
+// Sentinel used to roll back the updateDeal transaction on a version conflict.
+class OccConflictError extends Error {}
 
 const c = (v: string | undefined) => (v && v.length > 0 ? v : null);
 
@@ -26,20 +37,54 @@ export async function createDeal(input: unknown): Promise<ActionResult<{ id: str
   const stage = await db.pipelineStage.findFirst({ where: { id: parsed.data.stageId, orgId } });
   if (!stage) return fail("Stage not found");
   const d = parsed.data;
-  const created = await db.deal.create({
-    data: {
+  const cf = await applyCustomFields(orgId, "deal", d.customFields ?? {});
+  if (!cf.ok) return fail("Invalid custom fields", cf.errors);
+  const created = await db.$transaction(async (tx) => {
+    const deal = await tx.deal.create({
+      data: {
+        orgId,
+        title: d.title,
+        value: d.value,
+        currency: d.currency,
+        status: d.status,
+        stageId: d.stageId,
+        pipelineId: stage.pipelineId,
+        contactId: c(d.contactId),
+        companyId: c(d.companyId),
+        ownerId: userId,
+        closeDate: d.closeDate ? new Date(d.closeDate) : null,
+        notes: c(d.notes),
+        customFields: cf.value as Prisma.InputJsonValue,
+      },
+    });
+    await recordStageEvent(
+      {
+        orgId,
+        dealId: deal.id,
+        toStageId: deal.stageId,
+        toStatus: deal.status,
+        value: deal.value,
+        changedById: userId,
+      },
+      tx,
+    );
+    await emit(tx, {
       orgId,
-      title: d.title,
-      value: d.value,
-      currency: d.currency,
-      status: d.status,
-      stageId: d.stageId,
-      contactId: c(d.contactId),
-      companyId: c(d.companyId),
-      ownerId: userId,
-      closeDate: d.closeDate ? new Date(d.closeDate) : null,
-      notes: c(d.notes),
-    },
+      name: EVENTS.DEAL_CREATED,
+      payload: { dealId: deal.id, stageId: deal.stageId, status: deal.status },
+    });
+    // Audit (M19a) — who created this deal. Other entities can adopt recordAudit
+    // the same way (pass the tx as the first arg, next to emit).
+    await recordAudit(tx, {
+      orgId,
+      actorId: userId,
+      action: "deal.created",
+      entityType: "deal",
+      entityId: deal.id,
+      summary: `Created deal “${deal.title}”`,
+      metadata: { title: deal.title, value: deal.value.toString(), stageId: deal.stageId },
+    });
+    return deal;
   });
   revalidatePath("/deals");
   return ok({ id: created.id });
@@ -48,57 +93,191 @@ export async function createDeal(input: unknown): Promise<ActionResult<{ id: str
 export async function updateDeal(id: string, input: unknown): Promise<ActionResult<{ id: string }>> {
   const parsed = dealSchema.safeParse(input);
   if (!parsed.success) return fail("Invalid input", parsed.error.flatten().fieldErrors);
-  const { orgId } = await requireOrg();
+  const { orgId, userId } = await requireOrg();
   const existing = await db.deal.findFirst({ where: { id, orgId } });
   if (!existing) return fail("Not found");
   const stage = await db.pipelineStage.findFirst({ where: { id: parsed.data.stageId, orgId } });
   if (!stage) return fail("Stage not found");
   const d = parsed.data;
-  await db.deal.update({
-    where: { id },
-    data: {
-      title: d.title,
-      value: d.value,
-      currency: d.currency,
-      status: d.status,
-      stageId: d.stageId,
-      contactId: c(d.contactId),
-      companyId: c(d.companyId),
-      closeDate: d.closeDate ? new Date(d.closeDate) : null,
-      notes: c(d.notes),
-    },
-  });
+  const cf = await applyCustomFields(orgId, "deal", d.customFields ?? {});
+  if (!cf.ok) return fail("Invalid custom fields", cf.errors);
+  const stageChanged = existing.stageId !== d.stageId;
+  const statusChanged = existing.status !== d.status;
+  try {
+    await db.$transaction(async (tx) => {
+      const upd = await optimisticUpdate(tx.deal, {
+        id,
+        orgId,
+        expectedVersion: d.expectedVersion,
+        data: {
+          title: d.title,
+          value: d.value,
+          currency: d.currency,
+          status: d.status,
+          stageId: d.stageId,
+          pipelineId: stage.pipelineId,
+          contactId: c(d.contactId),
+          companyId: c(d.companyId),
+          closeDate: d.closeDate ? new Date(d.closeDate) : null,
+          notes: c(d.notes),
+          customFields: cf.value as Prisma.InputJsonValue,
+        },
+      });
+      if (!upd.ok) throw new OccConflictError();
+      if (stageChanged || statusChanged) {
+        await recordStageEvent(
+          {
+            orgId,
+            dealId: id,
+            fromStageId: existing.stageId,
+            toStageId: d.stageId,
+            fromStatus: existing.status,
+            toStatus: d.status,
+            value: d.value,
+            changedById: userId,
+          },
+          tx,
+        );
+      }
+      if (stageChanged) {
+        await emit(tx, {
+          orgId,
+          name: EVENTS.DEAL_STAGE_CHANGED,
+          payload: { dealId: id, fromStageId: existing.stageId, toStageId: d.stageId },
+        });
+      }
+      if (statusChanged) {
+        await emit(tx, {
+          orgId,
+          name: EVENTS.DEAL_STATUS_CHANGED,
+          payload: { dealId: id, fromStatus: existing.status, toStatus: d.status },
+        });
+      }
+      await recordAudit(tx, {
+        orgId,
+        actorId: userId,
+        action: "deal.updated",
+        entityType: "deal",
+        entityId: id,
+        summary: `Updated deal “${d.title}”`,
+        metadata: {
+          stageChanged,
+          statusChanged,
+          ...(stageChanged ? { fromStageId: existing.stageId, toStageId: d.stageId } : {}),
+          ...(statusChanged ? { fromStatus: existing.status, toStatus: d.status } : {}),
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof OccConflictError) return fail(OCC_CONFLICT_MESSAGE);
+    throw err;
+  }
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);
   return ok({ id });
 }
 
 export async function moveDealToStage(id: string, stageId: string): Promise<ActionResult<{ id: string; stageId: string }>> {
-  const { orgId } = await requireOrg();
+  const { orgId, userId } = await requireOrg();
   const [deal, stage] = await Promise.all([
     db.deal.findFirst({ where: { id, orgId } }),
     db.pipelineStage.findFirst({ where: { id: stageId, orgId } }),
   ]);
   if (!deal) return fail("Deal not found");
   if (!stage) return fail("Stage not found");
-  await db.deal.update({ where: { id }, data: { stageId } });
+  if (deal.stageId !== stageId) {
+    await db.$transaction(async (tx) => {
+      await tx.deal.update({ where: { id }, data: { stageId, pipelineId: stage.pipelineId } });
+      await recordStageEvent(
+        {
+          orgId,
+          dealId: id,
+          fromStageId: deal.stageId,
+          toStageId: stageId,
+          fromStatus: deal.status,
+          toStatus: deal.status,
+          value: deal.value,
+          changedById: userId,
+        },
+        tx,
+      );
+      await emit(tx, {
+        orgId,
+        name: EVENTS.DEAL_STAGE_CHANGED,
+        payload: { dealId: id, fromStageId: deal.stageId, toStageId: stageId },
+      });
+      await recordAudit(tx, {
+        orgId,
+        actorId: userId,
+        action: "deal.moved",
+        entityType: "deal",
+        entityId: id,
+        summary: `Moved deal “${deal.title}” to ${stage.name}`,
+        metadata: { fromStageId: deal.stageId, toStageId: stageId },
+      });
+    });
+  }
   revalidatePath("/deals");
   return ok({ id, stageId });
 }
 
 export async function setDealStatus(id: string, status: "OPEN" | "WON" | "LOST"): Promise<ActionResult<{ id: string }>> {
-  const { orgId } = await requireOrg();
-  const res = await db.deal.updateMany({ where: { id, orgId }, data: { status } });
-  if (res.count === 0) return fail("Not found");
+  const { orgId, userId } = await requireOrg();
+  const deal = await db.deal.findFirst({ where: { id, orgId } });
+  if (!deal) return fail("Not found");
+  if (deal.status !== status) {
+    await db.$transaction(async (tx) => {
+      await tx.deal.update({ where: { id }, data: { status } });
+      await recordStageEvent(
+        {
+          orgId,
+          dealId: id,
+          fromStageId: deal.stageId,
+          toStageId: deal.stageId,
+          fromStatus: deal.status,
+          toStatus: status,
+          value: deal.value,
+          changedById: userId,
+        },
+        tx,
+      );
+      await emit(tx, {
+        orgId,
+        name: EVENTS.DEAL_STATUS_CHANGED,
+        payload: { dealId: id, fromStatus: deal.status, toStatus: status },
+      });
+      await recordAudit(tx, {
+        orgId,
+        actorId: userId,
+        action: "deal.status_changed",
+        entityType: "deal",
+        entityId: id,
+        summary: `Marked deal “${deal.title}” ${status}`,
+        metadata: { fromStatus: deal.status, toStatus: status },
+      });
+    });
+  }
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);
   return ok({ id });
 }
 
 export async function deleteDeal(id: string): Promise<ActionResult<{ id: string }>> {
-  const { orgId } = await requireOrg();
-  const res = await db.deal.deleteMany({ where: { id, orgId } });
-  if (res.count === 0) return fail("Not found");
+  const { orgId, userId } = await requireOrg();
+  const deal = await db.deal.findFirst({ where: { id, orgId } });
+  if (!deal) return fail("Not found");
+  await db.$transaction(async (tx) => {
+    await tx.deal.delete({ where: { id } });
+    await recordAudit(tx, {
+      orgId,
+      actorId: userId,
+      action: "deal.deleted",
+      entityType: "deal",
+      entityId: id,
+      summary: `Deleted deal “${deal.title}”`,
+      metadata: { title: deal.title },
+    });
+  });
   revalidatePath("/deals");
   return ok({ id });
 }

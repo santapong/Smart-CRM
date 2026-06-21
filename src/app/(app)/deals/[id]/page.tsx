@@ -1,14 +1,27 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
+import { getDefinitions, toFieldViews } from "@/lib/custom-fields";
+import { hasFeature } from "@/lib/entitlements";
 import { PageHeader } from "@/components/page-header";
+import { SendEmailDialog } from "@/components/email/send-email-dialog";
+import { SummarizeDeal } from "@/components/ai/summarize-deal";
+import { EmailList } from "@/components/email/email-list";
+import { Comments } from "@/components/comments";
+import { loadCommentsData } from "@/lib/comments-data";
+import { Attachments } from "@/components/documents/attachments";
+import { Timeline } from "@/components/audit/timeline";
+import { loadDealTimeline } from "@/lib/audit-timeline";
 import { DealForm } from "../deal-form";
 import { DealStatusActions } from "./status-actions";
+import { LineItems } from "./line-items";
+import { GenerateDocument } from "./generate-document";
 
 export default async function DealDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { orgId } = await requireOrg();
-  const [deal, stages, contacts, companies] = await Promise.all([
+  const { orgId, userId, role } = await requireOrg();
+  const [deal, stages, contacts, companies, defs, emails, commentsData, lineItems, products, aiEnabled, templates, attachments, documents] = await Promise.all([
     db.deal.findFirst({
       where: { id, orgId },
       include: { activities: { orderBy: { createdAt: "desc" }, take: 20 }, contact: true, company: true, stage: true },
@@ -16,8 +29,19 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
     db.pipelineStage.findMany({ where: { orgId }, orderBy: { order: "asc" } }),
     db.contact.findMany({ where: { orgId }, orderBy: { lastName: "asc" }, select: { id: true, firstName: true, lastName: true } }),
     db.company.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    getDefinitions(orgId, "deal"),
+    db.emailMessage.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "desc" }, take: 10 }),
+    loadCommentsData(orgId, userId, role, "deal", id),
+    db.dealProduct.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "asc" } }),
+    db.product.findMany({ where: { orgId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, price: true } }),
+    hasFeature(orgId, "ai"),
+    db.documentTemplate.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.attachment.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "desc" } }),
+    db.document.findMany({ where: { orgId, dealId: id }, orderBy: { createdAt: "desc" }, take: 10, select: { id: true, title: true, status: true } }),
   ]);
   if (!deal) notFound();
+
+  const timeline = await loadDealTimeline(orgId, id);
 
   return (
     <>
@@ -30,6 +54,7 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
             stages={stages}
             contacts={contacts.map((c) => ({ id: c.id, label: `${c.firstName} ${c.lastName}` }))}
             companies={companies.map((c) => ({ id: c.id, label: c.name }))}
+            customFieldDefs={toFieldViews(defs)}
             initial={{
               id: deal.id,
               title: deal.title,
@@ -41,10 +66,81 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
               companyId: deal.companyId,
               closeDate: deal.closeDate,
               notes: deal.notes,
+              customFields: deal.customFields as Record<string, unknown> | null,
             }}
           />
+          <div className="mt-6 border-t pt-6">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Products</h3>
+            <LineItems
+              dealId={deal.id}
+              currency={deal.currency}
+              items={lineItems.map((li) => ({
+                id: li.id,
+                productId: li.productId,
+                name: li.name,
+                quantity: Number(li.quantity),
+                unitPrice: Number(li.unitPrice),
+                discount: li.discount != null ? Number(li.discount) : null,
+                billing: li.billing,
+              }))}
+              products={products.map((p) => ({ id: p.id, name: p.name, price: Number(p.price) }))}
+            />
+          </div>
+          <div className="mt-6 border-t pt-6">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comments</h3>
+            <Comments
+              entityType="deal"
+              entityId={deal.id}
+              members={commentsData.members}
+              initialComments={commentsData.comments}
+            />
+          </div>
         </section>
-        <aside>
+        <aside className="space-y-4">
+          {aiEnabled && (
+            <div className="rounded-lg border bg-card p-4">
+              <SummarizeDeal dealId={deal.id} />
+            </div>
+          )}
+          <div className="rounded-lg border bg-card p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Emails</h3>
+              <SendEmailDialog dealId={deal.id} disabled={!deal.contact?.email} />
+            </div>
+            <EmailList
+              emails={emails}
+              hint={deal.contact?.email ? undefined : "Link a contact with an email to send messages."}
+            />
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Documents</h3>
+            <GenerateDocument dealId={deal.id} templates={templates} />
+            {documents.length > 0 && (
+              <ul className="mt-3 space-y-1 border-t pt-3 text-sm">
+                {documents.map((d) => (
+                  <li key={d.id} className="flex items-center justify-between gap-2">
+                    <Link href={`/documents/${d.id}`} className="truncate hover:underline">
+                      {d.title}
+                    </Link>
+                    <span className="shrink-0 text-xs text-muted-foreground">{d.status}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Attachments</h3>
+            <Attachments
+              entity="deal"
+              entityId={deal.id}
+              attachments={attachments.map((a) => ({
+                id: a.id,
+                filename: a.filename,
+                size: a.size,
+                storageKey: a.storageKey,
+              }))}
+            />
+          </div>
           <div className="rounded-lg border bg-card p-4">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Activity</h3>
             {deal.activities.length === 0 ? (
@@ -59,6 +155,10 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
                 ))}
               </ul>
             )}
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</h3>
+            <Timeline entries={timeline} />
           </div>
         </aside>
       </div>

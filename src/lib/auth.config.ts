@@ -13,7 +13,22 @@ export const authConfig = {
         nextUrl.pathname === "/" ||
         nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/signup") ||
-        nextUrl.pathname.startsWith("/api/auth");
+        nextUrl.pathname.startsWith("/verify") ||
+        nextUrl.pathname.startsWith("/forgot") ||
+        nextUrl.pathname.startsWith("/reset") ||
+        nextUrl.pathname.startsWith("/api/auth") ||
+        // SSO/SCIM scaffold (M16): authenticated by the IdP / SCIM token, not a
+        // session — env-gated 501 until JACKSON_* is set. See src/lib/sso.ts.
+        nextUrl.pathname.startsWith("/api/scim") ||
+        nextUrl.pathname.startsWith("/api/email") ||
+        // eSign provider status callback (M18): authenticated by the provider
+        // signature, not a session — env-gated 501 until DROPBOX_SIGN_API_KEY is
+        // set. See src/lib/esign.ts.
+        nextUrl.pathname.startsWith("/api/esign") ||
+        nextUrl.pathname.startsWith("/api/forms") ||
+        // Public REST API (M12): authenticated via API key (Bearer), not a
+        // session — see src/lib/api/auth.ts.
+        nextUrl.pathname.startsWith("/api/v1");
       if (isPublic) return true;
       return isLoggedIn;
     },

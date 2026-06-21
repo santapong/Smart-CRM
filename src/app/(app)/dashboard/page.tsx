@@ -4,6 +4,9 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PipelineChart } from "./pipeline-chart";
 import { formatCurrency } from "@/lib/utils";
+import { weightedValue } from "@/lib/pipeline";
+import { listGoalsWithProgress } from "@/server/actions/goals";
+import { DashboardGoals } from "./dashboard-goals";
 import { format } from "date-fns";
 import Link from "next/link";
 
@@ -12,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const { orgId } = await requireOrg();
 
-  const [stages, openDeals, wonDeals, lostDeals, activities, contactCount, companyCount] = await Promise.all([
+  const [stages, openDeals, wonDeals, lostDeals, activities, contactCount, companyCount, goals] = await Promise.all([
     db.pipelineStage.findMany({ where: { orgId }, orderBy: { order: "asc" } }),
     db.deal.findMany({ where: { orgId, status: "OPEN" } }),
     db.deal.findMany({ where: { orgId, status: "WON" } }),
@@ -25,24 +28,39 @@ export default async function DashboardPage() {
     }),
     db.contact.count({ where: { orgId } }),
     db.company.count({ where: { orgId } }),
+    listGoalsWithProgress(),
   ]);
 
+  const stageById = new Map(stages.map((s) => [s.id, s]));
   const pipelineValue = openDeals.reduce((s, d) => s + Number(d.value), 0);
+  const weightedPipelineValue = openDeals.reduce((sum, d) => {
+    const stage = stageById.get(d.stageId);
+    return sum + (stage ? weightedValue(Number(d.value), d, stage) : Number(d.value));
+  }, 0);
   const wonValue = wonDeals.reduce((s, d) => s + Number(d.value), 0);
   const closedCount = wonDeals.length + lostDeals.length;
   const winRate = closedCount === 0 ? 0 : Math.round((wonDeals.length / closedCount) * 100);
 
-  const chartData = stages.map((s) => ({
-    name: s.name,
-    value: openDeals.filter((d) => d.stageId === s.id).reduce((sum, d) => sum + Number(d.value), 0),
-    color: s.color,
-  }));
+  const chartData = stages.map((s) => {
+    const stageDeals = openDeals.filter((d) => d.stageId === s.id);
+    return {
+      name: s.name,
+      value: stageDeals.reduce((sum, d) => sum + Number(d.value), 0),
+      weighted: stageDeals.reduce((sum, d) => sum + weightedValue(Number(d.value), d, s), 0),
+      color: s.color,
+    };
+  });
 
   return (
     <>
       <PageHeader title="Dashboard" description="Pipeline and activity at a glance." />
-      <div className="grid gap-4 p-6 md:grid-cols-4">
+      <div className="grid gap-4 p-6 md:grid-cols-2 lg:grid-cols-5">
         <Stat label="Open pipeline" value={formatCurrency(pipelineValue)} sub={`${openDeals.length} deals`} />
+        <Stat
+          label="Weighted pipeline"
+          value={formatCurrency(weightedPipelineValue)}
+          sub="By stage probability"
+        />
         <Stat label="Won (all-time)" value={formatCurrency(wonValue)} sub={`${wonDeals.length} deals`} />
         <Stat label="Win rate" value={`${winRate}%`} sub={`${closedCount} closed`} />
         <Stat label="People · Companies" value={`${contactCount} · ${companyCount}`} sub="In your CRM" />
@@ -54,6 +72,9 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <PipelineChart data={chartData} />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Solid bars show total value; the lighter overlay shows weighted (probability-adjusted) value.
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -89,6 +110,11 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+      {goals.length > 0 && (
+        <div className="px-6 pb-6">
+          <DashboardGoals goals={goals} />
+        </div>
+      )}
     </>
   );
 }

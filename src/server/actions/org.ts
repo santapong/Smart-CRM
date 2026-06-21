@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { requireOrg } from "@/lib/tenant";
 import { requireRole } from "@/lib/rbac";
+import { defineAbilityFor, authorize } from "@/lib/authz";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 
 export async function updateOrgName(name: string): Promise<ActionResult<{ id: string }>> {
@@ -12,7 +13,9 @@ export async function updateOrgName(name: string): Promise<ActionResult<{ id: st
   if (!v.success) return fail("Invalid name");
   const { orgId, role } = await requireOrg();
   try {
+    // Primary gate (unchanged) plus the CASL choke-point as defense-in-depth (M1).
     requireRole(role, "ADMIN");
+    authorize(defineAbilityFor({ role }), "manage", "org");
   } catch {
     return fail("Forbidden");
   }

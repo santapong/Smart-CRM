@@ -73,23 +73,67 @@ model Organization {
   slug      String   @unique
   createdAt DateTime @default(now())
 
-  memberships Membership[]
-  companies   Company[]
-  contacts    Contact[]
-  deals       Deal[]
-  activities  Activity[]
-  stages      PipelineStage[]
-  tags        Tag[]
+  memberships     Membership[]
+  companies       Company[]
+  contacts        Contact[]
+  deals           Deal[]
+  activities      Activity[]
+  stages          PipelineStage[]
+  tags            Tag[]
+  dealStageEvents DealStageEvent[]
+  pipelines       Pipeline[]
+  customFieldDefs CustomFieldDefinition[]
+  savedViews      SavedView[]
+  outboxEvents    OutboxEvent[]
+  subscription    Subscription?
+  entitlements    Entitlement[]
+  emailMessages   EmailMessage[]
+  suppressions    Suppression[]
+  sendingDomains  SendingDomain[]
+  leads           Lead[]
+  leadLabels      LeadLabel[]
+  forms           Form[]
+  formSubmissions FormSubmission[]
+  workflows       Workflow[]
+  workflowRuns    WorkflowRun[]
+  notifications   Notification[]
+  comments        Comment[]
+  reports         Report[]
+  dashboards      Dashboard[]
+  goals           Goal[]
+  apiKeys         ApiKey[]
+  webhookEndpoints WebhookEndpoint[]
+  products        Product[]
+  dealProducts    DealProduct[]
+  scoringRules    ScoringRule[]
+  sequences       Sequence[]
+  sequenceEnrollments SequenceEnrollment[]
+  importJobs      ImportJob[]
+  mergeLogs       MergeLog[]
+  connections     Connection[]
+  secrets         EncryptedSecret[]
+  customRoles     CustomRole[]
+  teams           Team[]
+  ssoConnections  SSOConnection[]
+  documentTemplates DocumentTemplate[]
+  documents       Document[]
+  attachments     Attachment[]
+  signatureRequests SignatureRequest[]
+  auditLogs       AuditLog[]
+  campaigns       Campaign[]
+  campaignRecipients CampaignRecipient[]
 }
 
 model Membership {
-  id     String @id @default(cuid())
-  userId String
-  orgId  String
-  role   Role   @default(MEMBER)
+  id           String  @id @default(cuid())
+  userId       String
+  orgId        String
+  role         Role    @default(MEMBER)
+  customRoleId String?
 
-  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customRole CustomRole?  @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
@@ -100,41 +144,50 @@ model Membership {
 // ---------- CRM domain ----------
 
 model Company {
-  id        String   @id @default(cuid())
-  orgId     String
-  name      String
-  domain    String?
-  industry  String?
-  size      String?
-  notes     String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  orgId        String
+  name         String
+  domain       String?
+  industry     String?
+  size         String?
+  notes        String?  @db.Text
+  customFields Json?
+  version      Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  contacts Contact[]
-  deals    Deal[]
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contacts    Contact[]
+  deals       Deal[]
+  documents   Document[]
+  attachments Attachment[]
 
   @@index([orgId, name])
 }
 
 model Contact {
-  id        String   @id @default(cuid())
-  orgId     String
-  companyId String?
-  firstName String
-  lastName  String
-  email     String?
-  phone     String?
-  title     String?
-  notes     String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  orgId        String
+  companyId    String?
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  title        String?
+  notes        String?  @db.Text
+  customFields Json?
+  version      Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  company    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  tags       ContactTag[]
-  deals      Deal[]
-  activities Activity[]
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  company     Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  tags        ContactTag[]
+  deals       Deal[]
+  activities  Activity[]
+  documents   Document[]
+  attachments Attachment[]
+  campaignRecipients CampaignRecipient[]
 
   @@index([orgId, lastName])
   @@index([orgId, email])
@@ -162,18 +215,41 @@ model ContactTag {
   @@id([contactId, tagId])
 }
 
-model PipelineStage {
-  id    String @id @default(cuid())
-  orgId String
-  name  String
-  order Int
-  color String @default("#3b82f6")
+// A named sales process; an org can have many (M6 — multiple pipelines).
+model Pipeline {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  order     Int      @default(0)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
 
-  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  deals Deal[]
+  org    Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  stages PipelineStage[]
+  deals  Deal[]
 
   @@unique([orgId, name])
   @@index([orgId, order])
+}
+
+model PipelineStage {
+  id          String  @id @default(cuid())
+  orgId       String
+  pipelineId  String?
+  name        String
+  order       Int
+  color       String  @default("#3b82f6")
+  rottenDays  Int?
+  probability Int?
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  pipeline Pipeline?    @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@unique([pipelineId, name])
+  @@index([orgId, name])
+  @@index([orgId, order])
+  @@index([pipelineId, order])
 }
 
 enum DealStatus {
@@ -183,30 +259,40 @@ enum DealStatus {
 }
 
 model Deal {
-  id        String     @id @default(cuid())
-  orgId     String
-  title     String
-  value     Decimal    @default(0) @db.Decimal(12, 2)
-  currency  String     @default("USD")
-  status    DealStatus @default(OPEN)
-  stageId   String
-  companyId String?
-  contactId String?
-  ownerId   String?
-  closeDate DateTime?
-  notes     String?    @db.Text
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id           String     @id @default(cuid())
+  orgId        String
+  title        String
+  value        Decimal    @default(0) @db.Decimal(12, 2)
+  currency     String     @default("USD")
+  status       DealStatus @default(OPEN)
+  stageId      String
+  pipelineId   String?
+  companyId    String?
+  contactId    String?
+  ownerId      String?
+  probability  Int?
+  closeDate    DateTime?
+  notes        String?    @db.Text
+  customFields Json?
+  version      Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-  org        Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  stage      PipelineStage  @relation(fields: [stageId], references: [id])
-  company    Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  contact    Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  owner      User?          @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  activities Activity[]
+  org         Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  stage       PipelineStage    @relation(fields: [stageId], references: [id])
+  pipeline    Pipeline?        @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
+  company     Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact     Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner       User?            @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  activities  Activity[]
+  stageEvents DealStageEvent[]
+  lineItems   DealProduct[]
+  documents   Document[]
+  attachments Attachment[]
 
   @@index([orgId, stageId])
   @@index([orgId, status])
+  @@index([orgId, pipelineId])
 }
 
 enum ActivityType {
@@ -227,6 +313,7 @@ model Activity {
   contactId   String?
   dealId      String?
   ownerId     String?
+  version     Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -237,4 +324,1050 @@ model Activity {
 
   @@index([orgId, dueAt])
   @@index([orgId, completedAt])
+}
+
+// ---------- Analytics ----------
+
+// Append-only log of deal stage/status transitions. Powers funnel,
+// velocity and win-rate analytics (see docs/research/briefs/backend/15).
+model DealStageEvent {
+  id          String      @id @default(cuid())
+  orgId       String
+  dealId      String
+  fromStageId String?
+  toStageId   String?
+  fromStatus  DealStatus?
+  toStatus    DealStatus?
+  value       Decimal     @default(0) @db.Decimal(12, 2)
+  changedById String?
+  changedAt   DateTime    @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deal Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, dealId])
+  @@index([orgId, toStageId])
+  @@index([orgId, changedAt])
+}
+
+// ---------- Platform foundations ----------
+
+// Per-org custom field definitions (M3). Values live in the JSONB
+// `customFields` column on Contact/Company/Deal.
+model CustomFieldDefinition {
+  id        String   @id @default(cuid())
+  orgId     String
+  entity    String // "contact" | "company" | "deal"
+  key       String
+  label     String
+  type      String // "text" | "number" | "date" | "boolean" | "select"
+  config    Json?
+  required  Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, entity, key])
+  @@index([orgId, entity])
+}
+
+// Transactional outbox (M2): domain events written in the same tx as a
+// mutation, then drained/fanned-out by a background worker.
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  orgId       String?
+  name        String
+  payload     Json
+  status      String    @default("PENDING") // PENDING | PROCESSED | FAILED
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+// Billing/entitlements (M4). Plans are code-defined; this mirrors Stripe.
+model Subscription {
+  id                   String    @id @default(cuid())
+  orgId                String    @unique
+  plan                 String    @default("free")
+  status               String    @default("active")
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// Per-org feature/limit overrides (M4).
+model Entitlement {
+  id       String  @id @default(cuid())
+  orgId    String
+  key      String
+  intValue Int?
+  boolValue Boolean?
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, key])
+}
+
+// Saved/shared list views with stored filters (M6).
+model SavedView {
+  id        String   @id @default(cuid())
+  orgId     String
+  ownerId   String?
+  entity    String // "contact" | "company" | "deal" | "activity"
+  name      String
+  filters   Json
+  shared    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, entity])
+}
+
+// ---------- Email (M7) ----------
+
+// A single email tied to a tenant (and optionally a contact/deal). Records both
+// real sends and env-gated "skipped" placeholders so the timeline is complete
+// even without a Resend key configured.
+model EmailMessage {
+  id                String   @id @default(cuid())
+  orgId             String
+  contactId         String?
+  dealId            String?
+  direction         String // "outbound" | "inbound"
+  status            String // "sent" | "skipped" | "failed" | "queued"
+  subject           String
+  body              String   @db.Text
+  fromAddr          String
+  toAddr            String
+  providerMessageId String?
+  threadId          String?
+  firstOpenedAt     DateTime?
+  openCount         Int      @default(0)
+  lastClickedAt     DateTime?
+  clickCount        Int      @default(0)
+  sentById          String?
+  createdAt         DateTime @default(now())
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  events EmailEvent[]
+
+  @@index([orgId, createdAt])
+  @@index([orgId, contactId])
+  @@index([orgId, dealId])
+}
+
+// Provider delivery/engagement events (opened, clicked, bounced, complained).
+// `providerEventId` is unique so webhook retries are idempotent.
+model EmailEvent {
+  id              String   @id @default(cuid())
+  emailMessageId  String
+  type            String
+  providerEventId String?  @unique
+  createdAt       DateTime @default(now())
+
+  emailMessage EmailMessage @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
+
+  @@index([emailMessageId])
+}
+
+// Per-org suppression list — addresses we must not email (bounced/complained).
+model Suppression {
+  id        String   @id @default(cuid())
+  orgId     String
+  email     String
+  reason    String
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, email])
+}
+
+// Per-org verified sending domains (for DKIM/SPF via the provider).
+model SendingDomain {
+  id        String   @id @default(cuid())
+  orgId     String
+  domain    String
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, domain])
+}
+
+// One-time password-reset tokens (D2). Not tenant-scoped — keyed by email so a
+// user can reset before selecting an org.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+// ---------- Leads & web forms (M8) ----------
+
+enum LeadStatus {
+  NEW
+  WORKING
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+}
+
+// An inbound prospect captured before it becomes a Deal. Converting a lead
+// creates a Deal in the org's default pipeline and links it via convertedDealId.
+model Lead {
+  id              String     @id @default(cuid())
+  orgId           String
+  title           String
+  value           Decimal?   @db.Decimal(12, 2)
+  currency        String     @default("USD")
+  status          LeadStatus @default(NEW)
+  score           Int        @default(0)
+  ownerId         String?
+  contactId       String?
+  companyId       String?
+  source          String?
+  sourceChannel   String?
+  utm             Json?
+  notes           String?    @db.Text
+  customFields    Json?
+  version         Int        @default(0)
+  convertedDealId String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  org    Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  labels LeadLabelOnLead[]
+
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+}
+
+model LeadLabel {
+  id    String @id @default(cuid())
+  orgId String
+  name  String
+  color String @default("#64748b")
+
+  org   Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leads LeadLabelOnLead[]
+
+  @@unique([orgId, name])
+}
+
+model LeadLabelOnLead {
+  leadId  String
+  labelId String
+
+  lead  Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  label LeadLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([leadId, labelId])
+}
+
+// A public web form whose submissions create Leads (or other targets). `fields`
+// is a JSON array of { key, label, type, required } definitions.
+model Form {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  fields      Json
+  target      String   @default("lead")
+  pipelineId  String?
+  redirectUrl String?
+  active      Boolean  @default(true)
+  submitCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org         Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  submissions FormSubmission[]
+
+  @@index([orgId])
+}
+
+model FormSubmission {
+  id        String   @id @default(cuid())
+  orgId     String
+  formId    String
+  leadId    String?
+  data      Json
+  utm       Json?
+  createdAt DateTime @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  form Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, formId])
+}
+
+// ---------- No-code workflow automation (M9) ----------
+
+// A trigger → conditions → ordered actions rule. `definition` is a JSON array of
+// action steps ({ type, ...params }); `conditions` is a JSON Logic rule evaluated
+// against the trigger context. Workflows run when a matching domain event is
+// drained from the outbox (see src/lib/workflows/engine.ts).
+model Workflow {
+  id           String   @id @default(cuid())
+  orgId        String
+  name         String
+  triggerEvent String
+  conditions   Json?
+  definition   Json
+  enabled      Boolean  @default(true)
+  runCount     Int      @default(0)
+  version      Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  runs WorkflowRun[]
+
+  @@index([orgId, triggerEvent, enabled])
+}
+
+// One execution of a Workflow against a single trigger event. `context` is the
+// serialized trigger context (event + loaded record).
+model WorkflowRun {
+  id           String    @id @default(cuid())
+  orgId        String
+  workflowId   String
+  status       String    @default("running") // running | done | failed
+  triggerEvent String
+  context      Json
+  error        String?
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workflow Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  steps    StepRun[]
+
+  @@index([orgId, workflowId])
+}
+
+// One executed action step within a WorkflowRun.
+model StepRun {
+  id        String   @id @default(cuid())
+  runId     String
+  idx       Int
+  type      String
+  status    String // done | failed | skipped
+  output    Json?
+  createdAt DateTime @default(now())
+
+  run WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}
+
+// ---------- Notifications & comments (M10) ----------
+
+// An in-app notification for a single recipient. recipientId/actorId are plain
+// User ids (no relation — keeps churn down). entityType/entityId optionally
+// deep-link to the record that triggered it.
+model Notification {
+  id         String    @id @default(cuid())
+  orgId      String
+  recipientId String
+  type       String // "mention" | "system" | ...
+  title      String
+  body       String?
+  entityType String?
+  entityId   String?
+  actorId    String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  org        Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([orgId, recipientId, readAt])
+}
+
+// A per-channel delivery attempt for a Notification (e.g. an email send).
+model NotificationDelivery {
+  id             String    @id @default(cuid())
+  notificationId String
+  channel        String // "email" | "inapp" | ...
+  status         String    @default("pending") // pending | sent | skipped | failed
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+}
+
+// A user comment on a CRM record (contact | company | deal | lead). Supports
+// @mentions which fan out to Notifications. authorId is a plain User id.
+model Comment {
+  id         String   @id @default(cuid())
+  orgId      String
+  authorId   String
+  entityType String // "contact" | "company" | "deal" | "lead"
+  entityId   String
+  body       String   @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, entityType, entityId])
+}
+
+// ---------- Reporting & goals (M11) ----------
+
+// A saved, parameterized report. `kind` selects the runner
+// (funnel | velocity | win_loss | lead_source | pipeline_value | activity) and
+// `spec` carries its JSON filters (pipelineId, date range, owner, …). `chartType`
+// is a UI hint (bar | line | area | pie). Runners live in src/lib/reports.
+model Report {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  kind      String
+  spec      Json
+  chartType String   @default("bar")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// A user-arranged collection of reports. `layout` is an ordered JSON array of
+// { reportId, position } entries rendered as a grid of widgets.
+model Dashboard {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  layout    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// A measurable target over a time window. `metric` ∈
+// deals_won_value | deals_won_count | deals_created | activities_completed.
+// `ownerId` optionally scopes the goal to a single user. Progress is computed
+// on read (see src/lib/reports/goals.ts).
+model Goal {
+  id        String   @id @default(cuid())
+  orgId     String
+  ownerId   String?
+  metric    String
+  target    Decimal  @db.Decimal(14, 2)
+  period    String
+  startsAt  DateTime
+  endsAt    DateTime
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// ---------- Public REST API & outbound webhooks (M12) ----------
+
+// A hashed API key for the public REST API. The plaintext key is
+// `sk_<lookupPrefix>_<secret>` and is shown to the user exactly once on
+// creation; we persist only `keyHash` (sha256 of the secret) plus a unique,
+// non-secret `lookupPrefix` used to find the row in constant time. `scopes`
+// gate which resources/operations the key may access (e.g. "contacts:read").
+model ApiKey {
+  id           String    @id @default(cuid())
+  orgId        String
+  name         String
+  lookupPrefix String    @unique
+  keyHash      String
+  scopes       String[]
+  lastUsedAt   DateTime?
+  createdById  String?
+  createdAt    DateTime  @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// A registered outbound webhook target for an org. `enabledEvents` is a list of
+// domain event names (or "*" for all). `secret` signs deliveries via HMAC-SHA256
+// in the `X-SmartCRM-Signature` header so receivers can verify authenticity.
+model WebhookEndpoint {
+  id            String   @id @default(cuid())
+  orgId         String
+  url           String
+  secret        String
+  enabledEvents String[]
+  status        String   @default("active") // active | disabled
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org        Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([orgId])
+}
+
+// One delivery attempt of a domain event to a WebhookEndpoint. Created when an
+// event is drained from the outbox; retried with backoff by an Inngest job until
+// it succeeds or the attempt cap is reached.
+model WebhookDelivery {
+  id             String    @id @default(cuid())
+  endpointId     String
+  eventName      String
+  payload        Json
+  status         String    @default("pending") // pending | success | failed
+  attempts       Int       @default(0)
+  responseStatus Int?
+  nextAttemptAt  DateTime?
+  createdAt      DateTime  @default(now())
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, status])
+}
+
+// A short-lived idempotency record for public-API POSTs. Keyed per org + key so
+// a retried request with the same `Idempotency-Key` returns the original result
+// instead of creating a duplicate resource.
+model IdempotencyKey {
+  id        String   @id @default(cuid())
+  orgId     String
+  key       String
+  result    Json
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, key])
+  @@index([createdAt])
+}
+
+// ---------- Products & line items (M13a) ----------
+
+// A reusable product/service in an org's catalog. `price`/`cost` are per-unit;
+// line items copy the price onto the deal (so catalog changes don't rewrite
+// historical deals).
+model Product {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  sku       String?
+  unit      String?
+  price     Decimal  @default(0) @db.Decimal(12, 2)
+  cost      Decimal? @db.Decimal(12, 2)
+  currency  String   @default("USD")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org   Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lines DealProduct[]
+
+  @@index([orgId])
+}
+
+// A single line item on a Deal. `productId` is optional so ad-hoc items are
+// allowed; `name`/`unitPrice` are snapshotted. `billing` ∈
+// one_time | monthly | quarterly | annually — recurring items feed MRR/ARR
+// (see src/server/actions/deal-products.ts dealRevenue), one-time items feed
+// the persisted Deal.value.
+model DealProduct {
+  id        String   @id @default(cuid())
+  orgId     String
+  dealId    String
+  productId String?
+  name      String
+  quantity  Decimal  @default(1) @db.Decimal(12, 2)
+  unitPrice Decimal  @db.Decimal(12, 2)
+  discount  Decimal? @db.Decimal(12, 2)
+  billing   String   @default("one_time")
+  createdAt DateTime @default(now())
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deal    Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  product Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, dealId])
+}
+
+// ---------- Rule-based lead scoring (M13a) ----------
+
+// A single scoring rule. `field` is a record key (incl. customFields.* via
+// computeScore), `op` ∈ eq | neq | contains | gt | lt | exists, `value` is the
+// comparison operand (unused for `exists`). Matching rules contribute `points`
+// to the record's score (see src/lib/scoring.ts).
+model ScoringRule {
+  id        String   @id @default(cuid())
+  orgId     String
+  entity    String   @default("lead")
+  field     String
+  op        String
+  value     String?
+  points    Int
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, entity])
+}
+
+// ---------- Sales sequences / cadences (M13b) ----------
+
+// A reusable, ordered cadence of steps (emails, tasks, waits). Records are
+// enrolled via SequenceEnrollment; an Inngest cron advances due enrollments
+// step-by-step (see src/lib/sequences/runner.ts).
+model Sequence {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org         Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  steps       SequenceStep[]
+  enrollments SequenceEnrollment[]
+
+  @@index([orgId])
+}
+
+// One step in a Sequence. `type` ∈ email | task | wait. `email` steps send
+// `subject`/`body`; `task` steps create an Activity titled `subject`; `wait`
+// steps gate the NEXT step by `waitDays`.
+model SequenceStep {
+  id         String   @id @default(cuid())
+  sequenceId String
+  order      Int
+  type       String // "email" | "task" | "wait"
+  subject    String?
+  body       String?  @db.Text
+  waitDays   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@index([sequenceId, order])
+}
+
+// A single record's progress through a Sequence. `currentStep` is the index of
+// the next step to run; `nextRunAt` is when the runner should next process it.
+// `status` ∈ active | completed | stopped | failed.
+model SequenceEnrollment {
+  id          String    @id @default(cuid())
+  orgId       String
+  sequenceId  String
+  contactId   String?
+  leadId      String?
+  status      String    @default("active")
+  currentStep Int       @default(0)
+  nextRunAt   DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sequence Sequence     @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status, nextRunAt])
+  @@index([sequenceId])
+}
+
+// ---------- Guided CSV import + dedupe/merge (M13c) ----------
+
+// A single CSV import run. `raw` is the uploaded CSV text; `mapping` maps source
+// header → entity field (or "customFields.key"); `dupeMode` ∈ skip|update|create
+// decides what to do when an existing record matches the dedupe key
+// (contact→email, company→domain||name). Rows are processed defensively by
+// src/lib/import/runner.ts — one bad row records an ImportRowError and never
+// aborts the job.
+model ImportJob {
+  id          String    @id @default(cuid())
+  orgId       String
+  entity      String // "contact" | "company"
+  status      String    @default("pending") // pending | running | done | failed
+  fileName    String?
+  raw         String    @db.Text
+  mapping     Json
+  dupeMode    String    @default("skip") // skip | update | create
+  totalRows   Int       @default(0)
+  processed   Int       @default(0)
+  created     Int       @default(0)
+  updated     Int       @default(0)
+  failed      Int       @default(0)
+  createdById String?
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  org    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  errors ImportRowError[]
+
+  @@index([orgId])
+}
+
+// A per-row failure within an ImportJob (validation/persist error). `raw` is the
+// offending source row so the user can fix and re-import.
+model ImportRowError {
+  id          String   @id @default(cuid())
+  importJobId String
+  rowNumber   Int
+  message     String
+  raw         Json
+  createdAt   DateTime @default(now())
+
+  importJob ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  @@index([importJobId])
+}
+
+// An audit + undo record for a record merge (M13c). `snapshot` captures the
+// deleted source record plus a relink summary so undoMerge can best-effort
+// restore it (recreate source + move children back). Org-scoped.
+model MergeLog {
+  id          String   @id @default(cuid())
+  orgId       String
+  entity      String // "contact" | "company"
+  targetId    String
+  sourceId    String
+  snapshot    Json
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// A configured third-party integration for an org (M15). `provider` is a
+// registry key ("slack", "gmail", …); `config` holds non-secret settings such
+// as the list of domain events the connection should be notified about
+// (config.events). Secrets (e.g. a Slack incoming-webhook URL) live in the
+// related EncryptedSecret rows, never here. Org-scoped.
+model Connection {
+  id        String   @id @default(cuid())
+  orgId     String
+  provider  String
+  label     String?
+  status    String   @default("active") // active | disabled
+  config    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org     Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  secrets EncryptedSecret[]
+
+  @@index([orgId, provider])
+}
+
+// An envelope-encrypted secret (M15). Ciphertext is AES-256-GCM; `keyId`
+// records which key encrypted it ("dev" for the labeled dev-only fallback) so
+// rotation is possible. `iv`, `authTag`, `ciphertext` are base64. Never store
+// plaintext. Org-scoped; optionally tied to a Connection.
+model EncryptedSecret {
+  id           String   @id @default(cuid())
+  orgId        String
+  connectionId String?
+  name         String
+  keyId        String
+  iv           String
+  authTag      String
+  ciphertext   String
+  createdAt    DateTime @default(now())
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  connection Connection?  @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// ---------- Advanced RBAC + teams (M16) ----------
+
+// A per-org named permission bundle that ADDS grants on top of a member's base
+// Role. `permissions` are "action:subject" strings (e.g. "manage:deal",
+// "read:contact", "manage:org"); see src/lib/authz.ts for the allowed set and
+// how they compose with the base role.
+model CustomRole {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  permissions String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  memberships Membership[]
+
+  @@unique([orgId, name])
+}
+
+// A named group of users within an org. Powers future visibility/territory
+// scoping; helpers live in src/lib/teams.ts.
+model Team {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members TeamMember[]
+
+  @@unique([orgId, name])
+}
+
+model TeamMember {
+  teamId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+}
+
+// A per-org SSO (SAML) connection (M16 — scaffold, env-gated). `metadataXml`
+// holds the IdP's SAML metadata; the live flow is wired only when JACKSON_* env
+// is set (see src/lib/sso.ts). `status` ∈ inactive | active.
+model SSOConnection {
+  id          String   @id @default(cuid())
+  orgId       String
+  provider    String   @default("saml")
+  label       String?
+  metadataXml String?  @db.Text
+  status      String   @default("inactive")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// ---------- Smart-Docs + eSign (M18) ----------
+
+// A reusable merge-field document template. `body` contains {{ path.to.value }}
+// tokens resolved against deal/contact/company/org context at generate time (see
+// src/lib/documents.ts). Org-scoped; names are unique per org.
+model DocumentTemplate {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  body        String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+enum DocumentStatus {
+  DRAFT
+  SENT
+  SIGNED
+}
+
+// A generated document — the rendered output of a DocumentTemplate against a
+// record's context, persisted as plain text in `content`. Optionally linked to
+// the source template and the deal/contact/company it was generated for.
+model Document {
+  id          String         @id @default(cuid())
+  orgId       String
+  templateId  String?
+  dealId      String?
+  contactId   String?
+  companyId   String?
+  title       String
+  content     String         @db.Text
+  status      DocumentStatus @default(DRAFT)
+  createdById String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  org               Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  template          DocumentTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  deal              Deal?              @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  contact           Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  attachments       Attachment[]
+  signatureRequests SignatureRequest[]
+
+  @@index([orgId])
+  @@index([orgId, dealId])
+}
+
+// An uploaded file (M18). Bytes live behind a pluggable storage adapter
+// (src/lib/storage.ts): local filesystem by default, Vercel Blob when
+// BLOB_READ_WRITE_TOKEN is set. `storageKey` is the adapter's opaque locator
+// (unique); `url` is set for backends that expose a public URL (Blob). Optional
+// links tie the file to a deal/contact/company/document. Org-scoped.
+model Attachment {
+  id           String   @id @default(cuid())
+  orgId        String
+  filename     String
+  contentType  String
+  size         Int
+  storageKey   String   @unique
+  url          String?
+  dealId       String?
+  contactId    String?
+  companyId    String?
+  documentId   String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deal     Deal?        @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  contact  Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company  Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  document Document?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, documentId])
+}
+
+enum SignatureStatus {
+  PENDING
+  SENT
+  SIGNED
+  DECLINED
+  CANCELLED
+}
+
+// An eSignature request for a Document (M18 — env-gated scaffold). `provider` is
+// the eSign provider key ("dropbox_sign" by default); `externalId` holds the
+// provider's request id once sent. `signers` is a JSON array of { email, name }.
+// The live send/callback only happens once ESIGN_* env is configured (see
+// src/lib/esign.ts); without it the request is recorded PENDING. Org-scoped.
+model SignatureRequest {
+  id          String          @id @default(cuid())
+  orgId       String
+  documentId  String
+  provider    String
+  externalId  String?
+  status      SignatureStatus @default(PENDING)
+  signers     Json
+  createdById String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  document Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, documentId])
+}
+
+// ---------- Audit log & history timeline (M19a) ----------
+
+// An append-only record of who did what to which entity (M19a). `actorId` is the
+// acting User id (plain string, no relation — keeps churn down, mirrors
+// Notification/Comment). `action` is a dotted verb ("deal.updated"); `entityType`
+// + `entityId` point at the affected record so per-record history timelines can
+// merge these with DealStageEvent. `summary` is a short human line; `metadata`
+// holds structured before/after detail. Org-scoped.
+model AuditLog {
+  id         String   @id @default(cuid())
+  orgId      String
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  summary    String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, entityType, entityId])
+  @@index([orgId, createdAt])
+}
+
+// ---------- Marketing campaigns (M19b) ----------
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+}
+
+enum RecipientStatus {
+  PENDING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+// A bulk marketing email built on the M7 email pipeline. `audience` is a simple,
+// explicit filter spec ({ type: "all" } | { type: "tag", tagId } |
+// { type: "company", companyId }) resolved to org-scoped contacts at send time
+// (see src/lib/campaigns.ts). Sending materializes CampaignRecipient rows, fans
+// out through sendEmail (skipping suppressed addresses), and records every send
+// as an EmailMessage so opens/clicks flow back via the existing Resend webhook.
+model Campaign {
+  id          String         @id @default(cuid())
+  orgId       String
+  name        String
+  subject     String
+  bodyHtml    String         @db.Text
+  status      CampaignStatus @default(DRAFT)
+  audience    Json?
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdById String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  org        Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  recipients CampaignRecipient[]
+
+  @@index([orgId])
+  @@index([orgId, status])
+}
+
+// One resolved recipient of a Campaign. `emailMessageId` links to the sent
+// EmailMessage so campaignStats can join EmailEvent for opens/clicks. Unique per
+// (campaign, email) so re-materializing is idempotent and never double-sends.
+model CampaignRecipient {
+  id             String          @id @default(cuid())
+  orgId          String
+  campaignId     String
+  contactId      String?
+  email          String
+  status         RecipientStatus @default(PENDING)
+  emailMessageId String?
+  error          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaign Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, email])
+  @@index([orgId, campaignId])
 }

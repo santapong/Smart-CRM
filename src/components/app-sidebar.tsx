@@ -1,17 +1,31 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Building2, KanbanSquare, ListChecks, Settings, LogOut, Search } from "lucide-react";
+import { LayoutDashboard, Users, Building2, KanbanSquare, ListChecks, Settings, LogOut, Search, Inbox, FileInput, Workflow, BarChart3, CalendarDays, Package, Send, Upload, Sparkles, Plug, FileText, History, Megaphone } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { openCommandPalette } from "@/components/command-palette";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
   { href: "/contacts", label: "Contacts", Icon: Users },
   { href: "/companies", label: "Companies", Icon: Building2 },
+  { href: "/leads", label: "Leads", Icon: Inbox },
   { href: "/deals", label: "Deals", Icon: KanbanSquare },
+  { href: "/products", label: "Products", Icon: Package },
+  { href: "/documents", label: "Documents", Icon: FileText },
   { href: "/activities", label: "Activities", Icon: ListChecks },
+  { href: "/calendar", label: "Calendar", Icon: CalendarDays },
+  { href: "/reports", label: "Reports", Icon: BarChart3 },
+  { href: "/assistant", label: "Assistant", Icon: Sparkles },
+  { href: "/forms", label: "Forms", Icon: FileInput },
+  { href: "/sequences", label: "Sequences", Icon: Send },
+  { href: "/campaigns", label: "Campaigns", Icon: Megaphone },
+  { href: "/automations", label: "Automations", Icon: Workflow },
+  { href: "/import", label: "Import", Icon: Upload },
+  { href: "/settings/integrations", label: "Integrations", Icon: Plug },
+  { href: "/audit", label: "Audit log", Icon: History },
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
 
@@ -53,9 +67,10 @@ export function AppSidebar({ orgName, userEmail }: { orgName: string; userEmail:
       </nav>
       <div className="border-t p-3">
         <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
+        <ThemeToggle />
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <LogOut className="h-3.5 w-3.5" />
           Sign out
